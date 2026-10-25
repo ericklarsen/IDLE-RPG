@@ -165,6 +165,47 @@ describe('party combat', () => {
     expect(solo.snapshot().party.members).toHaveLength(1);
   });
 
+  it('keeps a mate at the HP it already had when the roster is rebuilt', () => {
+    const sim = partySim('knight', 'ranger');
+    sim.mates[0].hp = 120;
+
+    sim.refreshParty();
+
+    // Rebuilding the roster must not be a free party heal.
+    expect(sim.mates[0].hp).toBe(120);
+  });
+
+  it('does not heal the party by swapping the leader back and forth', () => {
+    const sim = partySim('knight', 'ranger');
+    sim.hero.hp = 100;
+    sim.mates[0].hp = 50;
+
+    expect(sim.setActiveCharacter(1)).toBe(true);
+    expect(sim.hero.hp).toBe(50);
+    expect(sim.mates[0].hp).toBe(100);
+
+    expect(sim.setActiveCharacter(0)).toBe(true);
+    expect(sim.hero.hp).toBe(100);
+    expect(sim.mates[0].hp).toBe(50);
+  });
+
+  it('leaves a downed mate down and a newcomer at full HP', () => {
+    const sim = partySim('knight', 'ranger');
+    sim.mates[0].hp = 0;
+    sim.mates[0].down = true;
+
+    sim.refreshParty();
+    expect(sim.mates[0].down).toBe(true);
+    expect(sim.mates[0].hp).toBe(0);
+
+    // A character joining the fight starts fresh.
+    sim.party = setPartySlot(sim.party, 2, 'cleric')!;
+    sim.refreshParty();
+    const cleric = sim.mates.find((mate) => mate.id === 'cleric')!;
+    expect(cleric.hp).toBe(cleric.maxHp);
+    expect(cleric.down).toBe(false);
+  });
+
   it('reports the roster for the PARTY screen', () => {
     const sim = partySim('knight', 'ranger');
     const view = sim.partyView();

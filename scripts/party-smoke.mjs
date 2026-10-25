@@ -21,7 +21,19 @@ await page.addInitScript(() => {
   // A run past stage 50 owns the whole roster.
   localStorage.setItem(
     'idle-forge-save-v1',
-    JSON.stringify({ version: 24, level: 30, exp: 0, gold: 500, maxStage: 50, kills: 0, inventory: [] }),
+    // maxStage 50 unlocks the whole roster; stage 1 keeps the hero alive so the
+    // run reports steady HP instead of a constant death timer.
+    JSON.stringify({
+      version: 24,
+      level: 30,
+      exp: 0,
+      gold: 500,
+      maxStage: 50,
+      stage: 1,
+      farmStage: 1,
+      kills: 0,
+      inventory: [],
+    }),
   );
 });
 
@@ -79,6 +91,25 @@ await openSection(page, 'BATTLE');
 await page.waitForTimeout(600);
 console.log('after reload hero name:', await page.locator('.combat-line.hero .combat-name').innerText());
 console.log('after reload pips:', await page.locator('.party-pip').count());
+// GEAR follows the fighting character: one chip per member, and picking a
+// chip swaps whose gear (and whose fight) the page shows.
+await openSection(page, 'GEAR');
+await page.waitForTimeout(300);
+console.log('gear chips:', await page.locator('.char-tab').count());
+console.log('gear active chip:', await page.locator('.char-tab.on .char-tab-name').innerText());
+console.log('gear eyebrow:', await page.locator('.screen-head .eyebrow').innerText());
+
+await page.locator('.char-tab', { hasText: 'Warden' }).click();
+await page.waitForTimeout(300);
+console.log('after warden chip:', await page.locator('.char-tab.on .char-tab-name').innerText(), '|', await page.locator('.screen-head .eyebrow').innerText());
+// Swapping the leader must not refill the bar it just left.
+console.log('warden hp as leader:', await page.locator('.attune-hp').innerText());
+
+await page.locator('.char-tab', { hasText: 'Ranger' }).click();
+await page.waitForTimeout(300);
+console.log('back to ranger:', await page.locator('.char-tab.on .char-tab-name').innerText());
+console.log('ranger hp back as leader:', await page.locator('.attune-hp').innerText());
+
 await openSection(page, 'PARTY');
 
 await page.locator('.party-slot').nth(1).getByRole('button', { name: 'REMOVE' }).click();

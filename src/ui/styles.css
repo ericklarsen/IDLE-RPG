@@ -4926,3 +4926,57 @@ body {
   cursor: pointer;
 }
 .party-btn:disabled { opacity: 0.5; cursor: default; }
+
+/* Character switcher on GEAR/COSTUME: one chip per fighting member. */
+.char-tab-row {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.char-tab {
+  flex: 1 1 0;
+  min-width: 0;
+  display: grid;
+  gap: 1px;
+  padding: 5px 6px;
+  border: 2px solid var(--ink);
+  border-radius: 3px;
+  background: var(--paper);
+  box-shadow: 2px 2px 0 var(--ink);
+  cursor: pointer;
+  text-align: left;
+}
+
+.char-tab.on {
+  background: #ffe9a8;
+  box-shadow: none;
+  transform: translate(1px, 1px);
+}
+
+.char-tab.down {
+  opacity: 0.6;
+}
+
+.char-tab-name {
+  overflow: hidden;
+  font-family: var(--display);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.char-tab-meta {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #3b2b6b;
+}
+
+.char-tab.down .char-tab-meta {
+  color: var(--red);
+}

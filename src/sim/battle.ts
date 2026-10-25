@@ -3187,6 +3187,7 @@ export class BattleSim {
     const members: PartyView['members'] = [
       {
         id: active,
+        slot: this.party.activeSlot,
         name: info(active).name,
         color: info(active).color,
         element: info(active).element,
@@ -3197,6 +3198,7 @@ export class BattleSim {
       },
       ...this.mates.map((mate) => ({
         id: mate.id,
+        slot: this.party.slots.findIndex((id) => id === mate.id),
         name: info(mate.id).name,
         color: info(mate.id).color,
         element: info(mate.id).element,
@@ -3766,9 +3768,12 @@ export class BattleSim {
     if (!this.party.slots[slot]) return false;
     if (slot === this.party.activeSlot) return true;
 
+    this.rememberHp();
     this.party = { ...this.party, activeSlot: slot };
     const stats = this.computeStats(false);
-    this.hero = { ...stats, hp: Math.min(Math.max(1, this.hero.hp), stats.maxHp) };
+    // The incoming leader returns with the HP they last had, clamped to their
+    // own bar; only a character with no history starts full.
+    this.hero = { ...stats, hp: Math.max(1, this.recalledHp(activeCharacterId(this.party), stats.maxHp)) };
     this.refreshParty();
     return true;
   }
@@ -3779,24 +3784,49 @@ export class BattleSim {
    * changing the party in the UI or loading a save.
    */
   refreshParty(): void {
+    // Record who is hurt before the roster changes shape: LEAD and party edits
+    // must never hand out a free party heal.
+    this.rememberHp();
+
     const active = activeCharacterId(this.party);
     const ids = this.party.slots.filter(
       (id): id is CharacterId => Boolean(id) && id !== active,
     );
+    const before = new Map(this.mates.map((mate) => [mate.id, mate]));
 
     this.mates = ids.map((id) => {
       const stats = this.computeStats(false, id);
+      const old = before.get(id);
+      const hp = this.recalledHp(id, stats.maxHp);
+
       return {
         ...stats,
-        hp: stats.maxHp,
+        hp,
         id,
         cd: 1 / Math.max(0.2, stats.atkSpeed),
         // A fresh member waits out its first cooldown, so swapping or loading a
         // save mid-wave never dumps several signatures at once.
-        skillCd: characterById(id)?.skill.cooldown ?? 10,
-        down: false,
+        skillCd: old?.skillCd ?? characterById(id)?.skill.cooldown ?? 10,
+        // Only a member that was already down stays down; an emptied bar also
+        // counts, so nobody stands up just because the roster was rebuilt.
+        down: hp <= 0 || (old?.down ?? false),
       };
     });
+  }
+
+  /** HP held for each roster member across LEAD and party edits. */
+  private rosterHp = new Map<CharacterId, number>();
+
+  /** Captures the live HP of everyone currently fighting. */
+  private rememberHp(): void {
+    this.rosterHp.set(activeCharacterId(this.party), this.hero.hp);
+    for (const mate of this.mates) this.rosterHp.set(mate.id, mate.hp);
+  }
+
+  /** Remembered HP for a character, or a full bar the first time they join. */
+  private recalledHp(id: CharacterId, maxHp: number): number {
+    const remembered = this.rosterHp.get(id);
+    return remembered === undefined ? maxHp : Math.min(Math.max(0, remembered), maxHp);
   }
 
   /** A mate's own swing: no loadout skills, no mount or wing procs. */

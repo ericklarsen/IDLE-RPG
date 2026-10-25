@@ -128,6 +128,8 @@ export interface PartyView {
   activeSlot: number;
   members: {
     id: CharacterId;
+    /** Slot this member fills, so the UI can lead them without a second lookup. */
+    slot: number;
     name: string;
     /** Ink colour of the roster chip, so the HUD strip matches the PARTY screen. */
     color: string;

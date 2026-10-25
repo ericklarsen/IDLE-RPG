@@ -4,6 +4,7 @@ import { INVENTORY_CAP, RARITY, SLOT_LABEL, SLOTS } from '../data/items';
 import { SETS } from '../data/sets';
 import { SURGE_DURATION } from '../data/surge';
 import { itemPower, setProgress } from '../sim/upgrade';
+import { gameController } from '../state/controller';
 import { useGameStore } from '../state/store';
 import { filterBag, type BagFilter, type BagSort } from './bag';
 import CostumePanel from './CostumePanel';
@@ -43,6 +44,7 @@ export default function GearScreen({ selectedId, onSelect }: Props) {
     kills,
     gearScore,
     equipped,
+    party,
     inventory,
     costume,
     heroElement,
@@ -68,10 +70,12 @@ export default function GearScreen({ selectedId, onSelect }: Props) {
     : false;
   const activeSets = setProgress(equipped).filter((set) => set.count > 0);
   const shown = filterBag(inventory, filter, sort);
+  const leader = party.members[0];
+  const leaderName = leader ? leader.name.toUpperCase() : 'HERO';
 
   return (
     <Screen
-      eyebrow={`KNIGHT · LV ${level}`}
+      eyebrow={`${leaderName} · LV ${level}`}
       title="Gear"
       aside={
         <span className="gold-chip">
@@ -80,6 +84,29 @@ export default function GearScreen({ selectedId, onSelect }: Props) {
         </span>
       }
     >
+      {party.members.length > 1 && (
+        <div className="char-tab-row" role="tablist" aria-label="Character">
+          {party.members.map((member) => (
+            <button
+              key={member.id}
+              type="button"
+              role="tab"
+              aria-selected={member.active}
+              className={`char-tab${member.active ? ' on' : ''}${member.down ? ' down' : ''}`}
+              onClick={() => gameController.setActiveSlot(member.slot)}
+              title={`Fight and gear as ${member.name}`}
+            >
+              <span className="char-tab-name" style={{ color: member.color }}>
+                {member.name}
+              </span>
+              <span className="char-tab-meta">
+                {member.down ? 'DOWN' : member.element}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+
       <div className="rift-tabs gear-tabs" role="tablist" aria-label="Gear and costume">
         <button
           type="button"
@@ -118,7 +145,7 @@ export default function GearScreen({ selectedId, onSelect }: Props) {
       ) : (
         <>
           <div className="section-head">
-            <span>KNIGHT</span>
+            <span>{leaderName}</span>
             <span>GEAR SCORE {fmt(gearScore)}</span>
           </div>
 
