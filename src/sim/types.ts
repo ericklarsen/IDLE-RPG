@@ -11,6 +11,18 @@ export type Boosts = Record<BoostBranch, number>;
 export type Advantage = 'strong' | 'weak' | 'neutral';
 export type SkillKind = 'damage' | 'drain' | 'heal' | 'shield' | 'buff';
 
+/** Roster ids; the knight is the starter and always unlocked. */
+export type CharacterId = 'knight' | 'ranger' | 'cleric' | 'mage' | 'rogue';
+
+export interface PartyState {
+  /** Slot order is battle order: slot 0 stands on the front line. */
+  slots: (CharacterId | null)[];
+  /** Characters earned so far. */
+  unlocked: CharacterId[];
+  /** Member whose stats the HUD and the boss tracker report. */
+  activeSlot: number;
+}
+
 export interface Hero {
   hp: number;
   maxHp: number;

@@ -789,3 +789,69 @@ Total kasar: **10–15 hari kerja** untuk 1–6, di luar playtest dan tuning. Re
 ### 14.12 Non-goals draft ini
 
 Clan/guild, auction/trade, world boss real-time, ladder lintas perangkat, combat manual/turn-based, gacha, dan fitur apa pun yang menambah tab ke-9.
+
+## 15. Party & karakter (implementasi bertahap)
+
+Keputusan pemilik produk: **party 5 slot sekaligus**, **gear per karakter**, dan **wardrobe per karakter**. Bagian ini memecah pekerjaan itu jadi langkah yang masing-masing bisa diverifikasi, karena satu langkah besar tidak bisa diuji tanpa menebak.
+
+### 15.1 Roster v1
+
+| id | Nama | Role | Elemen | Unlock | HP | ATK | DEF | SPD | Crit | Signature |
+|---|---|---|---|---|---|---|---|---|---|---|
+| knight | Warden | tank | holy | stage 1 | 1.15 | 0.90 | 1.30 | 0.95 | 0 | Aegis Oath — shield party 18%, 14 s |
+| ranger | Ranger | ranged | lightning | 10 | 0.90 | 1.10 | 0.90 | 1.15 | +4% | Storm Volley — 170% ATK, 6 s |
+| cleric | Cleric | support | holy | 20 | 1.00 | 0.75 | 1.05 | 1.00 | 0 | Mending Light — heal party 16%, 12 s |
+| mage | Mage | caster | fire | 35 | 0.85 | 1.30 | 0.85 | 0.90 | +2% | Inferno — 240% ATK, 9 s |
+| rogue | Rogue | striker | dark | 50 | 0.85 | 1.20 | 0.85 | 1.05 | +6% | Nightfall — 190% ATK drain 30%, 8 s |
+
+Multiplier dikalikan ke stat turunan gear karakter itu sendiri. Tidak ada karakter yang unggul di semua sumbu: tank menukar damage dengan HP/DEF, mage sebaliknya, cleric satu-satunya sumber heal party.
+
+### 15.2 Aturan tarung
+
+- Slot 0 = baris depan (menanggung 65% serangan musuh), slot 1–4 = belakang (35% dan damage +10%).
+- Tiap anggota punya cooldown serang, HP, dan signature sendiri; mati berarti keluar dari pertarungan sampai wave berikutnya (bukan revive seluruh party).
+- Party wipe = mundur ke farm stage, aturan yang sudah ada.
+- **Resonance:** dua anggota satu elemen memberi seluruh party +6% ATK.
+- **Assist:** anggota belakang menembak tambahan tiap 4 detik sebesar 40% ATK, hanya saat target masih hidup.
+
+### 15.3 Wave & musuh
+
+- Jumlah musuh per wave: 2 (stage 1–9), 3 (10–29), 4 (30–49), 5 (50–79), 6 (80+); boss tetap 1 tapi dengan HP setara jumlah musuh.
+- HP/ATK musuh dibagi faktor `sqrt(count)` supaya total "effective HP" per wave tidak meledak saat jumlahnya naik.
+- `heroCd`/`enemyCd` tunggal diganti loop per kombatan; `Hero` menjadi `Combatant` (id karakter + stat).
+
+### 15.4 Gear per karakter
+
+- `equipped: Record<CharacterId, Equipped>`; bag tetap satu (dinaikkan 24 → 40 slot).
+- Set bonus dihitung per karakter; `EQUIP BEST`, refine, rune, enhance bekerja per karakter dengan pemilih karakter di halaman GEAR.
+- Ekonomi: drop rate item dinaikkan ~2.5× dan salvage memberi dust per rarity tetap, supaya 5 set bisa dikejar tanpa mengubah jam main. Kurva ini wajib diukur ulang lewat `npm run pacing`.
+- Item yang di-fuse/craft memakai level farm seperti sekarang; item terpasang di karakter mana pun tidak ikut ter-fuse.
+
+### 15.5 Wardrobe per karakter
+
+- `costume: Record<CharacterId, CostumeState>` (6 tier × 5 karakter = 30 outfit), pity dan `mastered` per karakter.
+- Drop costume memilih karakter acak berbobot yang tier-nya sudah terbuka; duplikat jadi dust seperti sekarang.
+- Skill outfit hanya aktif untuk karakter yang memakainya; `CODEX → WARDROBE` menampilkan 5 kolom.
+
+### 15.6 Save v24
+
+- Field baru: `party` (slots/unlocked/activeSlot), `gear` per karakter, `costume` per karakter.
+- Migrasi: save lama → `party = { slots: ['knight', null…], unlocked: ['knight'] }`, `gear.knight` = `equipped` lama, `costume.knight` = costume lama; karakter lain kosong. Save tanpa versi tetap ditolak seperti sekarang.
+- Milestone unlock dihitung ulang saat load (`bestStage`), jadi save lama yang sudah stage 50 langsung mendapat kelima karakter.
+
+### 15.7 UI & teknis
+
+- Halaman **PARTY** baru (lazy chunk) berisi 5 kartu slot, roster, unlock stage, dan tombol pasang.
+- HUD BATTLE: 5 bar HP tipis menggantikan satu bar hero; nama karakter aktif di baris stat.
+- Scene: 5 hero digambar 1.6× (bukan 2×) di dua baris, monster 2–6 di kanan; march dan parallax yang sudah ada tetap dipakai.
+- Bundle: entry saat ini 453,6/460 KB. Langkah party pasti melewatinya, jadi gate dinaikkan **hanya** dengan angka baru yang diukur, atau `modulepreload` Phaser dicabut untuk membeli ruang. Keputusan dicatat di README saat diukur.
+
+### 15.8 Urutan kerja & gate
+
+1. **Fondasi (selesai):** data roster + `PartyState` + normalisasi/unlock/resonance, 12 test. Belum tersambung ke tarung.
+2. **Save v24 + party di state:** simpan/muat party, migrasi gear & costume per karakter, test migrasi.
+3. **Combat party:** loop kombatan, target, wave bertingkat, signature skill; `battle.test.ts` dan `pacing.test.ts` disesuaikan dan diukur ulang.
+4. **UI:** halaman PARTY, GEAR per karakter, wardrobe per karakter, HUD 5 bar.
+5. **Scene & balance:** layout 5 hero, wave 2–6 monster, ekonomi ×2.5, kalibrasi ulang surge/pacing.
+
+Tiap langkah harus hijau di `npm test`, `npm run build`, dan `npm run check:bundle` sebelum lanjut.
