@@ -288,6 +288,18 @@ import type {
   TrialState,
 } from './types';
 
+/**
+ * A party member who fights beside the active character. Their gear and
+ * wardrobe are their own; boost, Ascension, mounts, and wings stay party-wide.
+ */
+interface Mate extends Hero {
+  id: CharacterId;
+  /** Seconds until the next swing. */
+  cd: number;
+  /** Downed members stop attacking until the wave clears. */
+  down: boolean;
+}
+
 /** One equipment set per character, so a party never shares gear ids. */
 function characterGear(): Record<CharacterId, Equipped> {
   const gear = {} as Record<CharacterId, Equipped>;
@@ -427,6 +439,8 @@ export class BattleSim {
   duelActive = false;
   trialActive = false;
   inventory: Item[] = [];
+  /** Everyone except the active member; they swing on their own cooldown. */
+  mates: Mate[] = [];
   /** Party order and unlocks; the getters below expose the active member. */
   party: PartyState = emptyParty();
   /** Save v24 keeps gear and wardrobe per character. */
@@ -602,6 +616,7 @@ export class BattleSim {
 
     const stats = this.computeStats();
     this.hero = { ...stats, hp: stats.maxHp };
+    this.refreshParty();
     this.enemy = this.buildEnemy();
     this.arena = normalizeArena(save?.arena) ?? emptyArena(dayKey());
     this.league = normalizeLeague(save?.league);
@@ -2005,6 +2020,16 @@ export class BattleSim {
       this.heroAttack();
     }
 
+    // The rest of the party swings on its own timer.
+    for (const mate of this.mates) {
+      if (mate.down) continue;
+      mate.cd -= step;
+      if (mate.cd <= 0) {
+        mate.cd += 1 / Math.max(0.2, mate.atkSpeed);
+        this.mateAttack(mate);
+      }
+    }
+
     if (this.deadTimer > 0) return;
 
     this.updateTimers(step);
@@ -3239,6 +3264,21 @@ export class BattleSim {
   }
 
   private enemyAttack(): void {
+    // Two in five swings land on whoever else is standing in front, so a
+    // bigger party spreads the damage instead of leaving the leader to soak it.
+    const standing = this.mates.filter((mate) => !mate.down);
+    if (standing.length > 0 && this.rng() < 0.4) {
+      const mate = standing[Math.floor(this.rng() * standing.length)];
+      const hit = damageRoll(this.enemy.atk, mate.def, 0, 1, this.rng);
+      mate.hp -= hit.damage;
+      this.emit({ type: 'hit', target: 'hero', damage: hit.damage, crit: false });
+      if (mate.hp <= 0) {
+        mate.hp = 0;
+        mate.down = true;
+      }
+      return;
+    }
+
     const roll = damageRoll(this.enemy.atk, this.hero.def, 0, 1, this.rng);
     let incoming = roll.damage;
 
@@ -3312,6 +3352,13 @@ export class BattleSim {
   }
 
   private killEnemy(): void {
+    // A cleared target gets the downed members back on their feet.
+    for (const mate of this.mates) {
+      if (!mate.down && mate.hp === mate.maxHp) continue;
+      mate.hp = mate.maxHp;
+      mate.down = false;
+    }
+
     if (this.trialActive) {
       this.finishTrial(true);
       return;
@@ -3673,7 +3720,58 @@ export class BattleSim {
     this.party = { ...this.party, activeSlot: slot };
     const stats = this.computeStats(false);
     this.hero = { ...stats, hp: Math.min(Math.max(1, this.hero.hp), stats.maxHp) };
+    this.refreshParty();
     return true;
+  }
+
+  /**
+   * Rebuilds the fighting roster from the party slots: everyone but the active
+   * member becomes a mate with its own stats, ready to swing. Call it after
+   * changing the party in the UI or loading a save.
+   */
+  refreshParty(): void {
+    const active = activeCharacterId(this.party);
+    const ids = this.party.slots.filter(
+      (id): id is CharacterId => Boolean(id) && id !== active,
+    );
+
+    this.mates = ids.map((id) => {
+      const stats = this.computeStats(false, id);
+      return {
+        ...stats,
+        hp: stats.maxHp,
+        id,
+        cd: 1 / Math.max(0.2, stats.atkSpeed),
+        down: false,
+      };
+    });
+  }
+
+  /** A mate's own swing: no loadout skills, no mount or wing procs. */
+  private mateAttack(mate: Mate): void {
+    if (this.enemy.hp <= 0) return;
+
+    const info = characterById(mate.id);
+    const elemMult = elementMultiplier(info?.element ?? null, this.enemy.element);
+    const roll = damageRoll(mate.atk, this.enemy.def, mate.crit, mate.critDmg, this.rng, {
+      elemMult,
+      elemBonus: 0,
+    });
+
+    this.enemy.hp -= roll.damage;
+    this.damageMarks.push({ t: this.time, dmg: roll.damage });
+    this.emit({
+      type: 'hit',
+      target: 'enemy',
+      damage: roll.damage,
+      crit: roll.crit,
+      advantage: elemMult > 1 ? 'strong' : elemMult < 1 ? 'weak' : 'neutral',
+    });
+    // Mates feed the surge meter at half rate, so a full party cannot double
+    // the uptime the meter was calibrated against.
+    this.addSurgeCharge(roll.damage * 0.5);
+
+    if (this.enemy.hp <= 0) this.killEnemy();
   }
 
   private isValidItem(item: Item): boolean {

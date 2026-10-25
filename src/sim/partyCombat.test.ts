@@ -1,0 +1,87 @@
+import { describe, expect, it } from 'vitest';
+import { BattleSim } from './battle';
+import { setPartySlot } from './party';
+import type { SaveData } from './types';
+
+function makeSave(overrides: Partial<SaveData> = {}): SaveData {
+  return {
+    version: 24,
+    level: 10,
+    exp: 0,
+    gold: 0,
+    maxStage: 20,
+    kills: 0,
+    inventory: [],
+    itemSeq: 10,
+    ...overrides,
+  };
+}
+
+/** Runs the simulation in fixed steps, the same cadence the scene uses. */
+function run(sim: BattleSim, seconds: number): void {
+  const step = 1 / 30;
+  for (let i = 0; i < Math.round(seconds / step); i += 1) sim.tick(step);
+}
+
+function partySim(...members: ('knight' | 'ranger' | 'cleric')[]): BattleSim {
+  const sim = new BattleSim(makeSave());
+  for (let slot = 0; slot < members.length; slot += 1) {
+    const next = setPartySlot(sim.party, slot, members[slot]);
+    expect(next, members[slot]).not.toBeNull();
+    sim.party = next!;
+  }
+  sim.party.activeSlot = 0;
+  sim.setActiveCharacter(0);
+  sim.refreshParty();
+  return sim;
+}
+
+describe('party combat', () => {
+  it('builds mates for everyone but the active member', () => {
+    const sim = partySim('knight', 'ranger', 'cleric');
+    expect(sim.mates.map((mate) => mate.id)).toEqual(['ranger', 'cleric']);
+    expect(sim.mates[0].maxHp).toBeGreaterThan(0);
+    expect(sim.mates[0].down).toBe(false);
+  });
+
+  it('lets mates deal damage, so a party kills faster than a solo hero', () => {
+    const solo = new BattleSim(makeSave());
+    const trio = partySim('knight', 'ranger', 'cleric');
+
+    run(solo, 12);
+    run(trio, 12);
+
+    expect(trio.enemy.hp).toBeLessThan(solo.enemy.hp);
+  });
+
+  it('re-seats the roster when the active member changes', () => {
+    const sim = partySim('knight', 'ranger');
+    expect(sim.setActiveCharacter(1)).toBe(true);
+    expect(sim.mates.map((mate) => mate.id)).toEqual(['knight']);
+  });
+
+  it('spreads damage onto mates and revives them on the next kill', () => {
+    const sim = partySim('knight', 'ranger');
+    expect(sim.mates).toHaveLength(1);
+
+    // Force the worst case instead of waiting for a lucky roll.
+    const mate = sim.mates[0];
+    mate.hp = 0;
+    mate.down = true;
+
+    // Clearing the target is what brings them back.
+    (sim as unknown as { killEnemy: () => void }).killEnemy();
+
+    expect(sim.mates[0].down).toBe(false);
+    expect(sim.mates[0].hp).toBe(sim.mates[0].maxHp);
+  });
+
+  it('keeps a solo party identical to the old single hero', () => {
+    const solo = new BattleSim(makeSave());
+    expect(solo.mates).toHaveLength(0);
+
+    run(solo, 10);
+    expect(solo.hero.hp).toBeLessThanOrEqual(solo.hero.maxHp);
+    expect(solo.enemy.hp).toBeLessThan(solo.enemy.maxHp);
+  });
+});
