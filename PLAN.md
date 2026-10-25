@@ -844,7 +844,7 @@ Multiplier dikalikan ke stat turunan gear karakter itu sendiri. Tidak ada karakt
 - Halaman **PARTY** baru (lazy chunk) berisi 5 kartu slot, roster, unlock stage, dan tombol pasang.
 - HUD BATTLE: 5 bar HP tipis menggantikan satu bar hero; nama karakter aktif di baris stat.
 - Scene: 5 hero digambar 1.6× (bukan 2×) di dua baris, monster 2–6 di kanan; march dan parallax yang sudah ada tetap dipakai.
-- Bundle: entry saat ini 453,6/460 KB. Langkah party pasti melewatinya, jadi gate dinaikkan **hanya** dengan angka baru yang diukur, atau `modulepreload` Phaser dicabut untuk membeli ruang. Keputusan dicatat di README saat diukur.
+- Bundle: entry saat ini 454,95/520 KB. **Keputusan:** `modulepreload` Phaser dipertahankan dan gate dinaikkan ke 520 KB, karena tanpa preload chunk battle baru ditemukan setelah entry dieksekusi sehingga unduhannya bersambung di 1,6 Mbps. Angka 520 KB diverifikasi lewat `npm run check:perf` pada 454,95 KB: first paint 1608 ms, canvas ready 3147 ms (batas 2000/4000 ms), margin ≈850 ms ≈ 65 KB. Kenaikan berikutnya wajib diukur ulang.
 
 ### 15.8 Urutan kerja & gate
 

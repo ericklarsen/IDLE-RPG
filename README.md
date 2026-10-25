@@ -45,7 +45,7 @@ npm run smoke:event        # smoke test event Emberfall, klaim cache, dan persis
 npm run smoke:back         # smoke test tombol back browser: halaman → BATTLE
 npm run smoke:a11y         # smoke test keyboard overlay: focus trap, Escape, inert
 npm run pacing            # simulasi progres 12 jam (engaged, casual, idle) + uptime surge
-npm run check:bundle      # gate JS awal ≤ 460 KB gzip (butuh `npm run build`)
+npm run check:bundle      # gate JS awal ≤ 520 KB gzip (butuh `npm run build`)
 npm run check:perf        # gate first paint & canvas ready pada throttle 1.6 Mbps
 npm run icons             # regenerate ikon PWA di public/icons
 ```
@@ -228,10 +228,11 @@ Tombol **ENHANCE WEAPON** di halaman **FORGE** selalu menargetkan senjata yang s
 - **PvP online sungguhan:** arena saat ini asinkron dan lokal — lawan adalah snapshot build, bukan pemain yang terhubung. Ladder online lintas perangkat butuh backend, akun, dan anti-cheat, yang masih di luar non-goal v1.
 - **Playtest manusia:** pacing sudah dituning lewat simulasi, tapi belum dicoba pemain sungguhan.
 - **Domain sendiri:** game disajikan dari domain `*.vercel.app` bawaan Vercel; belum ada custom domain.
-- Bundle **JS awal 443.3 KB gzip**, budget **≤ 460 KB** yang dijaga `npm run check:bundle` (entry HUD 109.8 KB + chunk Phaser+battle 333.6 KB yang di-`modulepreload` dari HTML sehingga keduanya diunduh paralel). Angka gate memakai gzip level 9 sendiri supaya stabil antar mesin; laporan Vite bisa berbeda ~1–2%.
+- Bundle **JS awal 454,95 KB gzip**, budget **≤ 520 KB** yang dijaga `npm run check:bundle` (entry HUD ~118 KB + chunk Phaser+battle ~337 KB yang di-`modulepreload` dari HTML sehingga keduanya diunduh paralel). Angka gate memakai gzip level 9 sendiri supaya stabil antar mesin; laporan Vite bisa berbeda ~1–2%.
+  - **Kenapa 520 KB, bukan 460 KB:** pekerjaan party menambah kode ke chunk battle, dan mempertahankan `modulepreload` lebih penting daripada angka byte — tanpa preload, chunk Phaser baru ditemukan setelah entry dieksekusi, jadi unduhannya bersambung di 1,6 Mbps. Gate dinaikkan **setelah** diukur: pada 454,95 KB, `npm run check:perf` mencatat **first paint 1608 ms** dan **canvas ready 3147 ms** terhadap batas 2000/4000 ms, jadi masih ada margin ~850 ms yang setara ±65 KB. Kenaikan berikutnya wajib disertai pengukuran baru, bukan sekadar menaikkan konstanta.
 - **Perf gate terukur, bukan klaim:** `npm run check:perf` menjalankan build produksi di bawah throttle 1.6 Mbps/150 ms dengan cache dingin. Hasil di mesin pengembangan: **first contentful paint 1.46–1.49 s** dan **canvas ready 2.75–2.80 s**, dengan batas 2.0 s / 4.0 s. Lonjakan di atas batas menggagalkan script.
 - Halaman **MENU** (**RIFT, EVENT, SKILLS, BOOSTS, ASCEND, CODEX, OPTIONS, SAVE DATA**), halaman **GEAR/FORGE/ARENA**, dan modal hasil duel dimuat **lazy**, jadi entry HUD tidak ikut membawa kodenya. Biayanya: halaman itu pertama kali dibuka ~75–115 ms lebih lambat di 4G lambat sambil menampilkan `Opening…`.
-- Kalau seluruh chunk lazy dijumlah, totalnya melewati 460 KB karena setiap chunk membawa overhead sendiri. Yang dijaga adalah **JS awal**; fitur berikutnya harus masuk chunk lazy baru atau memangkas kode, bukan menambah ke entry.
+- Kalau seluruh chunk lazy dijumlah, totalnya melewati 520 KB karena setiap chunk membawa overhead sendiri. Yang dijaga adalah **JS awal**; fitur berikutnya harus masuk chunk lazy baru atau memangkas kode, bukan menambah ke entry.
 - Perubahan yang menembus gate wajib disertai pengukuran baru di README + `PLAN.md`, bukan menaikkan angka tanpa bukti.
 
 ## Struktur
