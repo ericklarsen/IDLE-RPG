@@ -60,6 +60,21 @@ npm run preview -- --port 4173   # terminal 1
 npm run smoke:polish            # terminal 2
 ```
 
+## CI & deploy
+
+Setiap push ke `main` dan setiap pull request menjalankan GitHub Actions (`.github/workflows/ci.yml`), dua job paralel:
+
+- **checks** — `npm test` (395 unit test), `tsc --noEmit` lewat `npm run build`, lalu gate bundle 460 KB gzip pada hasil build.
+- **smoke** — menyalakan dev server lalu menjalankan 26 suite Playwright; setelah itu build produksi + `vite preview` untuk tiga suite yang hanya benar di build asli (`a11y`, `back`, `polish`). Screenshot `artifacts/` diunggah kalau job gagal.
+
+`main` otomatis ter-deploy ke Vercel setelah CI hijau (`.github/workflows/deploy.yml`), memakai commit yang baru diuji — bukan HEAD saat deploy mulai. Sekali setup:
+
+1. Buat token di halaman token Vercel (Hobby plan gratis, tanpa kartu kredit).
+2. Simpan sebagai secret repo bernama `VERCEL_TOKEN` (Settings → Secrets and variables → Actions).
+3. Push ke `main`. Deploy pertama membuat project Vercel dari folder repo; URL produksi muncul di ringkasan job dan di tab **Environments → production**.
+
+Deploy juga bisa dijalankan manual dari tab **Actions → Deploy → Run workflow**. Konfigurasi build ada di `vercel.json` (`npm run build`, output `dist`) dan `base: './'` membuat aset tetap jalan di domain root maupun subpath.
+
 ## Yang sudah jalan
 
 - Auto-battle tanpa kontrol: hero menyerang sendiri, musuh membalas, hero revive setelah 3 detik.
@@ -217,7 +232,7 @@ Tombol **ENHANCE WEAPON** di halaman **FORGE** selalu menargetkan senjata yang s
 - **Art pass:** sprite karakter, background, dan icon item masih prosedural/dummy. Icon item adalah pixel map di `src/data/itemIcons.ts`, sedangkan sprite karakter dibangun dari primitif di `src/game/dummy/assets.ts` (`SPRITE_BUILDERS`). File art final tinggal menggantikan texture dengan key yang sama (`hero`, `rival`, `slime`, `bat`, `skeleton`, `goblin`, `wraith`, `demon`, `blade`, `bg`) tanpa menyentuh scene atau layout.
 - **PvP online sungguhan:** arena saat ini asinkron dan lokal — lawan adalah snapshot build, bukan pemain yang terhubung. Ladder online lintas perangkat butuh backend, akun, dan anti-cheat, yang masih di luar non-goal v1.
 - **Playtest manusia:** pacing sudah dituning lewat simulasi, tapi belum dicoba pemain sungguhan.
-- **Deploy:** build sudah PWA-ready, tapi belum dipasang ke hosting publik.
+- **Domain sendiri:** deploy sudah otomatis ke Vercel, tapi masih memakai domain `*.vercel.app`; belum ada custom domain.
 - Bundle **JS awal 443.3 KB gzip**, budget **≤ 460 KB** yang dijaga `npm run check:bundle` (entry HUD 109.8 KB + chunk Phaser+battle 333.6 KB yang di-`modulepreload` dari HTML sehingga keduanya diunduh paralel). Angka gate memakai gzip level 9 sendiri supaya stabil antar mesin; laporan Vite bisa berbeda ~1–2%.
 - **Perf gate terukur, bukan klaim:** `npm run check:perf` menjalankan build produksi di bawah throttle 1.6 Mbps/150 ms dengan cache dingin. Hasil di mesin pengembangan: **first contentful paint 1.46–1.49 s** dan **canvas ready 2.75–2.80 s**, dengan batas 2.0 s / 4.0 s. Lonjakan di atas batas menggagalkan script.
 - Halaman **MENU** (**RIFT, EVENT, SKILLS, BOOSTS, ASCEND, CODEX, OPTIONS, SAVE DATA**), halaman **GEAR/FORGE/ARENA**, dan modal hasil duel dimuat **lazy**, jadi entry HUD tidak ikut membawa kodenya. Biayanya: halaman itu pertama kali dibuka ~75–115 ms lebih lambat di 4G lambat sambil menampilkan `Opening…`.

@@ -1,0 +1,61 @@
+name: Deploy
+
+# Only ship a build that CI already passed, so a red test never reaches
+# production. Manual runs are allowed for a deliberate re-deploy.
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Never let two production deploys race; the newest commit wins.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Deploy to Vercel
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: production
+      url: ${{ steps.deploy.outputs.url }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Deploy the commit the CI run tested, not whatever main points at now.
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Deploy
+        id: deploy
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          if [ -z "$VERCEL_TOKEN" ]; then
+            echo "::error::VERCEL_TOKEN secret is missing. Create a token at https://vercel.com/account/tokens and add it under Settings → Secrets and variables → Actions."
+            exit 1
+          fi
+
+          url=$(npx --yes vercel@latest deploy \
+            --prod \
+            --yes \
+            --non-interactive \
+            --token "$VERCEL_TOKEN")
+
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          echo "Deployed to $url"
