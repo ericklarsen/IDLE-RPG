@@ -15,6 +15,18 @@ import type { PartyState } from './types';
 const rosterIds = CHARACTERS.map((entry) => entry.id);
 
 describe('character roster', () => {
+  it('keeps signature percentages as fractions, not per-cent integers', () => {
+    // `SkillInfo` expresses every percentage as a 0…1 fraction; a signature
+    // written as `16` instead of `0.16` would heal 16 bars at once.
+    for (const entry of CHARACTERS) {
+      for (const pct of [entry.skill.healPct, entry.skill.shieldPct, entry.skill.drainPct]) {
+        if (pct === undefined) continue;
+        expect(pct, entry.id).toBeGreaterThan(0);
+        expect(pct, entry.id).toBeLessThan(1);
+      }
+    }
+  });
+
   it('offers one character per role with unique ids', () => {
     expect(CHARACTERS).toHaveLength(PARTY_SIZE);
     expect(new Set(rosterIds).size).toBe(rosterIds.length);

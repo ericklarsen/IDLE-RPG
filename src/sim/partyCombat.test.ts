@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
+import { characterById } from '../data/characters';
 import { BattleSim } from './battle';
 import { setPartySlot } from './party';
-import type { SaveData } from './types';
+import type { SaveData, SimEvent } from './types';
+
+/** Reaches the private skill path without widening the public surface. */
+type Castable = {
+  mateCast: (mate: { id: string; hp: number; maxHp: number; atk: number }, info: unknown) => void;
+};
 
 function makeSave(overrides: Partial<SaveData> = {}): SaveData {
   return {
@@ -24,7 +30,15 @@ function run(sim: BattleSim, seconds: number): void {
 }
 
 function partySim(...members: ('knight' | 'ranger' | 'cleric')[]): BattleSim {
-  const sim = new BattleSim(makeSave());
+  return partySimWith({}, ...members);
+}
+
+/** A party on a chosen stage, for tests that need the hero to survive. */
+function partySimWith(
+  save: Partial<SaveData>,
+  ...members: ('knight' | 'ranger' | 'cleric')[]
+): BattleSim {
+  const sim = new BattleSim(makeSave(save));
   for (let slot = 0; slot < members.length; slot += 1) {
     const next = setPartySlot(sim.party, slot, members[slot]);
     expect(next, members[slot]).not.toBeNull();
@@ -74,6 +88,47 @@ describe('party combat', () => {
 
     expect(sim.mates[0].down).toBe(false);
     expect(sim.mates[0].hp).toBe(sim.mates[0].maxHp);
+  });
+
+  it('lets a mate cast its own signature off its own cooldown', () => {
+    // Stage 1 so the hero does not die and freeze the timers mid-run, which is
+    // what a death does to everyone in the party.
+    const sim = partySimWith({ stage: 1, farmStage: 1, level: 30 }, 'knight', 'ranger');
+    const events: SimEvent[] = [];
+    sim.on((event) => events.push(event));
+
+    run(sim, 12);
+
+    const casts = events.filter(
+      (event) => event.type === 'skill' && event.name === 'Storm Volley',
+    );
+    expect(casts.length).toBeGreaterThan(0);
+  });
+
+  it('applies a support signature to every standing member', () => {
+    const sim = partySim('knight', 'cleric');
+    const cleric = sim.mates[0];
+    const skill = characterById('cleric')!.skill;
+
+    sim.hero.hp = 1;
+    cleric.hp = 1;
+    (sim as unknown as Castable).mateCast(cleric, skill);
+
+    expect(sim.hero.hp).toBeGreaterThan(1);
+    expect(cleric.hp).toBeGreaterThan(1);
+    // A fraction of max HP, not a number of bars.
+    expect(sim.hero.hp).toBeLessThanOrEqual(Math.round(sim.hero.maxHp * 0.17) + 1);
+  });
+
+  it('shields the party from a tank signature without overshooting max HP', () => {
+    const sim = partySim('ranger', 'knight');
+    const knight = sim.mates[0];
+    expect(knight.id).toBe('knight');
+
+    (sim as unknown as Castable).mateCast(knight, characterById('knight')!.skill);
+
+    expect(sim.shield).toBeGreaterThan(0);
+    expect(sim.shield).toBeLessThanOrEqual(sim.hero.maxHp);
   });
 
   it('keeps a solo party identical to the old single hero', () => {

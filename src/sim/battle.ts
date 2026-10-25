@@ -296,6 +296,8 @@ interface Mate extends Hero {
   id: CharacterId;
   /** Seconds until the next swing. */
   cd: number;
+  /** Seconds until this member's signature skill is ready again. */
+  skillCd: number;
   /** Downed members stop attacking until the wave clears. */
   down: boolean;
 }
@@ -2020,14 +2022,25 @@ export class BattleSim {
       this.heroAttack();
     }
 
-    // The rest of the party swings on its own timer.
+    // The rest of the party swings and casts on its own timers.
     for (const mate of this.mates) {
       if (mate.down) continue;
       mate.cd -= step;
       if (mate.cd <= 0) {
         mate.cd += 1 / Math.max(0.2, mate.atkSpeed);
+        const target = this.enemy.id;
         this.mateAttack(mate);
+        // A swing that cleared the wave spawned the next one; the member keeps
+        // its cooldown for that new target instead of dumping it instantly.
+        if (this.enemy.id !== target) continue;
       }
+
+      mate.skillCd -= step;
+      if (mate.skillCd > 0) continue;
+
+      const signature = characterById(mate.id)?.skill;
+      mate.skillCd = signature?.cooldown ?? 10;
+      if (signature) this.mateCast(mate, signature);
     }
 
     if (this.deadTimer > 0) return;
@@ -3778,6 +3791,9 @@ export class BattleSim {
         hp: stats.maxHp,
         id,
         cd: 1 / Math.max(0.2, stats.atkSpeed),
+        // A fresh member waits out its first cooldown, so swapping or loading a
+        // save mid-wave never dumps several signatures at once.
+        skillCd: characterById(id)?.skill.cooldown ?? 10,
         down: false,
       };
     });
@@ -3808,6 +3824,83 @@ export class BattleSim {
     this.addSurgeCharge(roll.damage * 0.5);
 
     if (this.enemy.hp <= 0) this.killEnemy();
+  }
+
+  /**
+   * A mate's signature skill: damage and drain scale off that member's own ATK
+   * and element, heals land on the whole party, and a shield feeds the same
+   * party barrier direct enemy hits chew through before HP.
+   */
+  private mateCast(mate: Mate, info: SkillInfo): void {
+    const element = characterById(mate.id)?.element ?? null;
+
+    if (info.kind === 'damage' || info.kind === 'drain') {
+      if (this.enemy.hp <= 0) return;
+      const elemMult = elementMultiplier(info.element ?? element, this.enemy.element);
+      const damage = Math.max(1, Math.round(mate.atk * (info.multiplier ?? 1) * elemMult));
+
+      this.enemy.hp -= damage;
+      this.damageMarks.push({ t: this.time, dmg: damage });
+      // Half charge, like a mate's basic swing: signatures must not inflate
+      // the surge uptime the meter was calibrated against.
+      this.addSurgeCharge(damage * 0.5);
+      this.emit({ type: 'skill', name: info.name, kind: info.kind, amount: damage });
+
+      if (info.kind === 'drain') {
+        const healed = Math.min(
+          mate.maxHp - mate.hp,
+          Math.round(damage * (info.drainPct ?? 0)),
+        );
+        if (healed > 0) mate.hp += healed;
+      }
+
+      if (info.slowPct) {
+        this.enemySlowPct = info.slowPct;
+        this.enemySlowTimer = info.duration ?? 4;
+      }
+
+      if (this.enemy.hp <= 0) this.killEnemy();
+      return;
+    }
+
+    if (info.kind === 'heal') {
+      const standing = this.mates.filter((other) => !other.down);
+      let healed = Math.min(
+        this.hero.maxHp - this.hero.hp,
+        Math.round(this.hero.maxHp * (info.healPct ?? 0.15)),
+      );
+      if (healed > 0) this.hero.hp += healed;
+
+      for (const other of standing) {
+        const gain = Math.min(
+          other.maxHp - other.hp,
+          Math.round(other.maxHp * (info.healPct ?? 0.15)),
+        );
+        if (gain <= 0) continue;
+        other.hp += gain;
+        healed += gain;
+      }
+
+      this.emit({ type: 'skill', name: info.name, kind: 'heal', amount: healed });
+      return;
+    }
+
+    if (info.kind === 'shield') {
+      const amount = Math.round(this.hero.maxHp * (info.shieldPct ?? 0.2));
+      this.shield = Math.max(this.shield, amount);
+      this.shieldTimer = Math.max(this.shieldTimer, info.duration ?? 8);
+      this.emit({ type: 'skill', name: info.name, kind: 'shield', amount });
+      return;
+    }
+
+    this.buffPct = Math.max(this.buffPct, info.buffPct ?? 0.25);
+    this.buffTimer = Math.max(this.buffTimer, info.duration ?? 6);
+    this.emit({
+      type: 'skill',
+      name: info.name,
+      kind: 'buff',
+      amount: Math.round(this.buffPct * 100),
+    });
   }
 
   private isValidItem(item: Item): boolean {
