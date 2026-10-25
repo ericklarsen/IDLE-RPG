@@ -334,34 +334,24 @@ export default function App() {
             <span style={{ width: `${pct(enemyHp, enemyMaxHp)}%` }} />
           </div>
 
-          <div className="combat-line hero">
-            <span className="badge hero-badge">YOU</span>
-            <span className="combat-name" style={{ color: leader.color }}>
-              {leader.name}
-            </span>
-            {shield > 0 && <span className="shield-chip">+{fmt(shield)}</span>}
-            <span className="combat-numbers">
-              {fmt(heroHp)} / {fmt(heroMaxHp)}
-            </span>
-          </div>
-          <div className="track hp hero">
-            <span style={{ width: `${pct(heroHp, heroMaxHp)}%` }} />
-          </div>
-
-          {roster && (
-            <div className="party-strip" aria-label="Party health">
+          {roster ? (
+            // With a party, the single hero bar is replaced by one full bar per
+            // member: same information as before, but for everyone fighting.
+            <div className="party-bars" aria-label="Party health">
               {roster.map((member) => (
                 <div
                   key={member.id}
-                  className={`party-pip${member.active ? ' active' : ''}${
+                  className={`party-bar${member.active ? ' active' : ''}${
                     member.down ? ' down' : ''
                   }`}
                   title={`${member.name} · ${member.element}`}
                 >
-                  <span className="party-pip-name" style={{ color: member.color }}>
+                  {/* Kept for everyone so the names line up down the column. */}
+                  <span className={`party-bar-tag${member.active ? '' : ' blank'}`}>YOU</span>
+                  <span className="party-bar-name" style={{ color: member.color }}>
                     {member.name}
                   </span>
-                  <span className="track hp pip">
+                  <span className="track hp party">
                     <span
                       style={{
                         width: `${pct(member.hp, member.maxHp)}%`,
@@ -369,12 +359,31 @@ export default function App() {
                       }}
                     />
                   </span>
-                  <span className="party-pip-hp">
+                  <span className="party-bar-hp">
                     {member.down ? 'DOWN' : `${fmt(member.hp)}/${fmt(member.maxHp)}`}
                   </span>
+                  {member.active && shield > 0 && (
+                    <span className="party-bar-shield">+{fmt(shield)}</span>
+                  )}
                 </div>
               ))}
             </div>
+          ) : (
+            <>
+              <div className="combat-line hero">
+                <span className="badge hero-badge">YOU</span>
+                <span className="combat-name" style={{ color: leader.color }}>
+                  {leader.name}
+                </span>
+                {shield > 0 && <span className="shield-chip">+{fmt(shield)}</span>}
+                <span className="combat-numbers">
+                  {fmt(heroHp)} / {fmt(heroMaxHp)}
+                </span>
+              </div>
+              <div className="track hp hero">
+                <span style={{ width: `${pct(heroHp, heroMaxHp)}%` }} />
+              </div>
+            </>
           )}
 
           {arena.duelActive ? (

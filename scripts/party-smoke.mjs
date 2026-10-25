@@ -48,7 +48,7 @@ console.log('slots before:', (await page.locator('.party-slots').innerText()).re
 // A solo run must keep the old single-hero HUD.
 await openSection(page, 'BATTLE');
 await page.waitForTimeout(400);
-console.log('hud strip while solo:', await page.locator('.party-strip').count());
+console.log('hud party bars while solo:', await page.locator('.party-bars').count());
 console.log('hud hero name while solo:', await page.locator('.combat-line.hero .combat-name').innerText());
 await openSection(page, 'PARTY');
 
@@ -62,14 +62,16 @@ console.log('leader slot class:', await page.locator('.party-slot.leader').getAt
 
 await openSection(page, 'BATTLE');
 await page.waitForTimeout(800);
-console.log('hud strip pips:', await page.locator('.party-pip').count());
-console.log('hud strip:', (await page.locator('.party-strip').innerText()).replaceAll('\n', ' | '));
-console.log('hud hero name:', await page.locator('.combat-line.hero .combat-name').innerText());
-console.log('hud hero hp:', await page.locator('.combat-line.hero .combat-numbers').innerText());
+console.log('hud party bars:', await page.locator('.party-bar').count());
+console.log('hud party rows:', (await page.locator('.party-bars').innerText()).replaceAll('\n', ' | '));
+console.log('hud leader name:', await page.locator('.party-bar.active .party-bar-name').innerText());
+console.log('hud leader hp:', await page.locator('.party-bar.active .party-bar-hp').innerText());
+// The single hero bar has to be gone once the party is real.
+console.log('hud solo bar with party:', await page.locator('.combat-line.hero').count());
 console.log('hud dead veil:', await page.locator('.dead-veil').count());
 console.log(
   'hud strip overflow:',
-  await page.locator('.party-strip').evaluate((strip) => {
+  await page.locator('.party-bars').evaluate((strip) => {
     const rect = strip.getBoundingClientRect();
     return Math.round(Math.max(0, -rect.left, rect.right - window.innerWidth));
   }),
@@ -86,11 +88,11 @@ await page.waitForTimeout(1500);
 await openSection(page, 'PARTY');
 console.log('after reload slot 2:', (await page.locator('.party-slot').nth(1).innerText()).replaceAll('\n', ' | '));
 
-// The strip comes back from the save, not just from the click that made it.
+// The bars come back from the save, not just from the click that made them.
 await openSection(page, 'BATTLE');
 await page.waitForTimeout(600);
-console.log('after reload hero name:', await page.locator('.combat-line.hero .combat-name').innerText());
-console.log('after reload pips:', await page.locator('.party-pip').count());
+console.log('after reload leader:', await page.locator('.party-bar.active .party-bar-name').innerText());
+console.log('after reload bars:', await page.locator('.party-bar').count());
 // GEAR follows the fighting character: one chip per member, and picking a
 // chip swaps whose gear (and whose fight) the page shows.
 await openSection(page, 'GEAR');
@@ -118,7 +120,8 @@ console.log('after remove slot 2:', (await page.locator('.party-slot').nth(1).in
 
 await openSection(page, 'BATTLE');
 await page.waitForTimeout(400);
-console.log('hud strip after remove:', await page.locator('.party-strip').count());
+console.log('hud party bars after remove:', await page.locator('.party-bars').count());
+console.log('hud solo bar after remove:', await page.locator('.combat-line.hero').count());
 
 // A full party of five: the arena draws four mates behind the leader, and the
 // strip has to hold all five bars at once.
@@ -133,11 +136,43 @@ for (const name of ['Ranger', 'Cleric', 'Mage', 'Rogue']) {
 }
 await openSection(page, 'BATTLE');
 await page.waitForTimeout(2000);
-console.log('full party pips:', await page.locator('.party-pip').count());
-console.log('full party hero:', await page.locator('.combat-line.hero .combat-name').innerText());
+console.log('full party bars:', await page.locator('.party-bar').count());
+console.log('full party leader:', await page.locator('.party-bar.active .party-bar-name').innerText());
+console.log(
+  'full party numbers:',
+  (await page.locator('.party-bar-hp').allInnerTexts()).join(' | '),
+);
 // A five-member party faces a packed wave, so the HUD has to say how many are left.
 const packChip = page.locator('.pack-chip');
 console.log('pack chip:', (await packChip.count()) ? await packChip.innerText() : 'none');
+
+// Five full rows have to survive the smallest supported width, with the bar
+// still readable instead of squeezed to nothing by the name and numbers.
+await page.setViewportSize({ width: 360, height: 640 });
+await page.waitForTimeout(500);
+console.log(
+  'narrow bars overflow:',
+  await page.locator('.party-bars').evaluate((bars) => {
+    const rect = bars.getBoundingClientRect();
+    return Math.round(Math.max(0, bars.scrollWidth - bars.clientWidth, -rect.left, rect.right - window.innerWidth));
+  }),
+);
+console.log(
+  'narrow bar widths:',
+  await page.locator('.party-bar .track.hp.party').evaluateAll((tracks) =>
+    tracks.map((track) => Math.round(track.getBoundingClientRect().width)).join(' | '),
+  ),
+);
+// Five rows make the HUD panel taller, so it must still start below the arena
+// ground line (370 of the 844 design height, scaled to the viewport).
+console.log(
+  'narrow panel top vs ground:',
+  await page.locator('.panel').evaluate((panel) => {
+    const top = Math.round(panel.getBoundingClientRect().top);
+    const ground = Math.round((370 / 844) * window.innerHeight);
+    return `${top} vs ${ground} -> ${top > ground ? 'clear' : 'COVERS ARENA'}`;
+  }),
+);
 console.log('canvas:', await page.locator('canvas').count());
 console.log('errors:', errors.length ? errors : 'none');
 await browser.close();

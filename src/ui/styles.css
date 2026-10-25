@@ -581,41 +581,62 @@ body {
   );
 }
 
-/* Party health strip: only rendered once a second member joins the party. */
-.party-strip {
+/*
+ * Party health: once a second member joins, the single hero bar becomes one
+ * row per member. The tag column is reserved for everyone so names line up.
+ */
+.party-bars {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(56px, 1fr));
-  gap: 4px;
-  margin-top: 6px;
+  gap: 3px;
+  margin-top: 7px;
 }
 
-.party-pip {
-  display: grid;
-  gap: 2px;
+.party-bar {
+  display: flex;
+  align-items: center;
+  gap: 5px;
   min-width: 0;
 }
 
-.party-pip-name {
+.party-bar-tag {
+  flex: 0 0 auto;
+  padding: 0 3px 1px;
+  border: 2px solid var(--navy);
+  border-radius: 2px;
+  background: var(--navy);
+  font-family: var(--display);
+  font-size: 8px;
+  letter-spacing: 0.06em;
+  color: var(--paper);
+}
+
+.party-bar-tag.blank {
+  visibility: hidden;
+}
+
+.party-bar-name {
+  flex: 0 0 56px;
   overflow: hidden;
   font-family: var(--display);
-  font-size: 9px;
+  font-size: 9.5px;
   letter-spacing: 0.04em;
   text-transform: uppercase;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.party-pip.active .party-pip-name {
+.party-bar.active .party-bar-name {
   text-decoration: underline;
   text-underline-offset: 2px;
 }
 
-.party-pip .track.pip {
-  height: 7px;
+.party-bar .track.hp.party {
+  flex: 1 1 auto;
+  height: 9px;
   border-width: 2px;
 }
 
-.party-pip .track.pip > span {
+.party-bar .track.hp.party > span {
   background-image: repeating-linear-gradient(
     135deg,
     rgba(255, 253, 247, 0.28) 0 2px,
@@ -623,23 +644,33 @@ body {
   );
 }
 
-.party-pip-hp {
-  font-size: 8px;
+.party-bar-hp {
+  flex: 0 0 auto;
+  min-width: 60px;
+  font-size: 8.5px;
   font-weight: 700;
   color: var(--muted);
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
 
-.party-pip.down {
+.party-bar-shield {
+  flex: 0 0 auto;
+  font-size: 8.5px;
+  font-weight: 700;
+  color: var(--navy);
+  font-variant-numeric: tabular-nums;
+}
+
+.party-bar.down {
   opacity: 0.55;
 }
 
-.party-pip.down .track.pip > span {
+.party-bar.down .track.hp.party > span {
   background-color: var(--muted);
 }
 
-.party-pip.down .party-pip-hp {
+.party-bar.down .party-bar-hp {
   color: var(--red);
   letter-spacing: 0.06em;
 }
