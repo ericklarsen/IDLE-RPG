@@ -302,6 +302,17 @@ interface Mate extends Hero {
   down: boolean;
 }
 
+/** The caster of a roster signature, so the leader and mates share one path. */
+interface SignatureCaster {
+  id: CharacterId;
+  atk: number;
+  /** Party element bonus, added only when the skill matches the attunement. */
+  elemBonus: number;
+  hp: number;
+  maxHp: number;
+  setHp: (hp: number) => void;
+}
+
 /** One equipment set per character, so a party never shares gear ids. */
 function characterGear(): Record<CharacterId, Equipped> {
   const gear = {} as Record<CharacterId, Equipped>;
@@ -468,6 +479,10 @@ export class BattleSim {
   time = 0;
 
   private heroCd = 0;
+  /** Seconds until the leader's own roster signature is ready. */
+  private signatureCd = 0;
+  /** Which character that timer was started for; a swap restarts it. */
+  private signatureId: CharacterId | null = null;
   private enemyCd = 0;
   private petCd = 0;
   private burnTimer = 0;
@@ -2049,6 +2064,7 @@ export class BattleSim {
     this.updatePet(step);
     this.castReadySkill();
     this.castCostumeSkill();
+    this.castLeaderSignature(step);
 
     if (this.deadTimer > 0) return;
 
@@ -2120,6 +2136,43 @@ export class BattleSim {
       this.castSkill(info, this.skills.levels[skillId] ?? 1);
       return;
     }
+  }
+
+  /**
+   * The leader's roster signature, on its own timer like a mate's: the loadout
+   * and outfit skills sit on top of it, they do not replace it.
+   */
+  private castLeaderSignature(step: number): void {
+    const id = activeCharacterId(this.party);
+    // A swap starts the incoming leader's timer from scratch, so a charged
+    // signature is never handed to whoever walks in.
+    if (this.signatureId !== id) {
+      this.signatureId = id;
+      this.signatureCd = characterById(id)?.skill.cooldown ?? 10;
+    }
+
+    if (this.signatureCd > 0) {
+      this.signatureCd = Math.max(0, this.signatureCd - step);
+      return;
+    }
+
+    const info = characterById(id)?.skill;
+    this.signatureCd = info?.cooldown ?? 10;
+    if (!info) return;
+
+    this.castSignature(
+      {
+        id,
+        atk: this.attackPower,
+        elemBonus: this.elemBonus,
+        hp: this.hero.hp,
+        maxHp: this.hero.maxHp,
+        setHp: (hp) => {
+          this.hero.hp = hp;
+        },
+      },
+      info,
+    );
   }
 
   /** The outfit's signature skill: one extra cast, gated by the same GCD. */
@@ -3862,12 +3915,38 @@ export class BattleSim {
    * party barrier direct enemy hits chew through before HP.
    */
   private mateCast(mate: Mate, info: SkillInfo): void {
-    const element = characterById(mate.id)?.element ?? null;
+    this.castSignature(
+      {
+        id: mate.id,
+        atk: mate.atk,
+        elemBonus: 0,
+        hp: mate.hp,
+        maxHp: mate.maxHp,
+        setHp: (hp) => {
+          mate.hp = hp;
+        },
+      },
+      info,
+    );
+  }
+
+  /**
+   * One roster signature, cast the same way by the leader and by every mate:
+   * damage and drain scale off the caster's ATK and element, heals land on the
+   * whole party, and a shield feeds the party barrier direct hits chew through.
+   */
+  private castSignature(caster: SignatureCaster, info: SkillInfo): void {
+    const element = characterById(caster.id)?.element ?? null;
 
     if (info.kind === 'damage' || info.kind === 'drain') {
       if (this.enemy.hp <= 0) return;
       const elemMult = elementMultiplier(info.element ?? element, this.enemy.element);
-      const damage = Math.max(1, Math.round(mate.atk * (info.multiplier ?? 1) * elemMult));
+      const bonus =
+        info.element && this.attuned.element === info.element ? caster.elemBonus : 0;
+      const damage = Math.max(
+        1,
+        Math.round(caster.atk * (info.multiplier ?? 1) * elemMult * (1 + bonus)),
+      );
 
       this.enemy.hp -= damage;
       this.damageMarks.push({ t: this.time, dmg: damage });
@@ -3878,10 +3957,10 @@ export class BattleSim {
 
       if (info.kind === 'drain') {
         const healed = Math.min(
-          mate.maxHp - mate.hp,
+          caster.maxHp - caster.hp,
           Math.round(damage * (info.drainPct ?? 0)),
         );
-        if (healed > 0) mate.hp += healed;
+        if (healed > 0) caster.setHp(caster.hp + healed);
       }
 
       if (info.slowPct) {
@@ -3894,18 +3973,16 @@ export class BattleSim {
     }
 
     if (info.kind === 'heal') {
-      const standing = this.mates.filter((other) => !other.down);
+      const share = info.healPct ?? 0.15;
       let healed = Math.min(
         this.hero.maxHp - this.hero.hp,
-        Math.round(this.hero.maxHp * (info.healPct ?? 0.15)),
+        Math.round(this.hero.maxHp * share),
       );
       if (healed > 0) this.hero.hp += healed;
 
-      for (const other of standing) {
-        const gain = Math.min(
-          other.maxHp - other.hp,
-          Math.round(other.maxHp * (info.healPct ?? 0.15)),
-        );
+      for (const other of this.mates) {
+        if (other.down) continue;
+        const gain = Math.min(other.maxHp - other.hp, Math.round(other.maxHp * share));
         if (gain <= 0) continue;
         other.hp += gain;
         healed += gain;

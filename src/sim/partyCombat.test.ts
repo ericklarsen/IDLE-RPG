@@ -105,6 +105,36 @@ describe('party combat', () => {
     expect(casts.length).toBeGreaterThan(0);
   });
 
+  it('casts the leader own signature on top of its loadout', () => {
+    const sim = partySimWith({ stage: 1, farmStage: 1, level: 30 }, 'knight');
+    const events: SimEvent[] = [];
+    sim.on((event) => events.push(event));
+
+    run(sim, 15);
+
+    // Aegis Oath is the knight's roster signature; it is not in any loadout,
+    // so seeing it proves the leader casts its own skill too.
+    expect(events.some((event) => event.type === 'skill' && event.name === 'Aegis Oath')).toBe(
+      true,
+    );
+    expect(sim.shield).toBeGreaterThan(0);
+  });
+
+  it('casts a support leader signature too', () => {
+    // Stage 10 so nothing dies in the window: a wave clear refills the party and
+    // would mask what the heal did. Party-wide healing itself is covered by the
+    // direct cast test below.
+    const sim = partySimWith({ stage: 10, farmStage: 10, level: 40 }, 'cleric', 'knight');
+    const events: SimEvent[] = [];
+    sim.on((event) => events.push(event));
+
+    run(sim, 13);
+
+    expect(events.some((event) => event.type === 'skill' && event.name === 'Mending Light')).toBe(
+      true,
+    );
+  });
+
   it('applies a support signature to every standing member', () => {
     const sim = partySim('knight', 'cleric');
     const cleric = sim.mates[0];
