@@ -13,10 +13,12 @@ export const SLOT_LABEL: Record<Slot, string> = {
 
 // One bag for the whole roster. Raising this is not a free capacity change:
 // a bigger bag keeps more per-slot candidates alive, so EQUIP BEST gets better
-// gear. Measured through scripts/pacing.ts, 40 slots cut stage 50 from 7.6h to
-// 6.1h and pushed surge uptime to 24.3%, outside its 15-20% band. It stays 24
-// until the arc is re-baselined on purpose.
-export const INVENTORY_CAP = 24;
+// gear. At the old curve, 40 slots cut stage 50 from 7.6h to 6.1h and pushed
+// surge uptime to 24.3%, outside its 15-20% band — so the extra space shipped
+// together with a re-baselined enemy curve (enemyHpCubic 0.01 -> 0.0115), which
+// puts stage 40 back at 4.8-5.7h and stage 50 at 7.2-7.8h over three seeds.
+// Measured with scripts/pacing.ts; do not change one without the other.
+export const INVENTORY_CAP = 40;
 
 export interface RarityInfo {
   label: string;

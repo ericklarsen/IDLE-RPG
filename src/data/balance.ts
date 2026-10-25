@@ -5,11 +5,13 @@ export const BALANCE = {
 
   // Enemy power grows quadratically with the global wave. Player power grows
   // roughly linearly (levels + item level), so later stages take longer but
-  // never outrun the hero forever. Tuned with scripts/pacing.ts.
+  // never outrun the hero forever. Tuned with scripts/pacing.ts; the cubic term
+  // pays for the 40-slot bag (see INVENTORY_CAP), which would otherwise cut the
+  // campaign by about 20%.
   enemyHpBase: 40,
   enemyHpPerWave: 80,
   enemyHpQuad: 1.2,
-  enemyHpCubic: 0.01,
+  enemyHpCubic: 0.0115,
   enemyAtkBase: 4,
   enemyAtkPerWave: 0.55,
   enemyDefBase: 0,

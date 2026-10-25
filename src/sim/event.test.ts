@@ -142,7 +142,8 @@ describe('Emberfall progression', () => {
   it('keeps the exclusive set out of ordinary loot', () => {
     const sim = new BattleSim(save(), seeded(4));
     sim.setEvent(false, '', 0, 0);
-    runFor(sim, 90);
+    // Long enough for the drop roll to land at least once on the current curve.
+    runFor(sim, 240);
 
     expect(sim.inventory.length).toBeGreaterThan(0);
     expect(sim.inventory.every((item) => item.set !== 'emberforged')).toBe(true);
