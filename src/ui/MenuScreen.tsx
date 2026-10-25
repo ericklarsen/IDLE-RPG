@@ -15,6 +15,7 @@ const MountPanel = lazy(() => import('./MountPanel'));
 const WingPanel = lazy(() => import('./WingPanel'));
 const DungeonPanel = lazy(() => import('./DungeonPanel'));
 const ShopPanel = lazy(() => import('./ShopPanel'));
+const PartyPanel = lazy(() => import('./PartyPanel'));
 
 interface Props {
   /** Open MENU sub-page, kept in the app nav state so back works. */
@@ -36,6 +37,17 @@ export default function MenuScreen({ page, onPage, onEnterBattle }: Props) {
 
   if (page) {
     const back = () => onPage(null);
+
+    if (page === 'party') {
+      return (
+        <Screen eyebrow="ROSTER" title="Party" onBack={back}>
+          <Suspense fallback={loading}>
+            <PartyPanel />
+          </Suspense>
+        </Screen>
+      );
+    }
+
 
     if (page === 'rift') {
       return (
@@ -267,6 +279,13 @@ export default function MenuScreen({ page, onPage, onEnterBattle }: Props) {
       name: 'ASCEND',
       desc: 'Trade a run for shards',
       meta: `✦ ${shards} SHARDS`,
+    },
+    {
+      id: 'party',
+      stamp: '05',
+      name: 'PARTY',
+      desc: 'Roster of five, leader and support',
+      meta: 'WHO FIGHTS',
     },
     {
       id: 'codex',

@@ -4,6 +4,7 @@ import type { ScreenId } from './Dock';
 /** Pages hosted inside MENU; each one gets its own history entry. */
 export type MenuPage =
   | 'rift'
+  | 'party'
   | 'event'
   | 'mounts'
   | 'wings'

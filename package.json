@@ -40,7 +40,8 @@
     "smoke:surge": "node scripts/surge-smoke.mjs",
     "smoke:forge": "node scripts/forge-smoke.mjs",
     "smoke:back": "node scripts/back-smoke.mjs",
-    "smoke:a11y": "node scripts/a11y-smoke.mjs"
+    "smoke:a11y": "node scripts/a11y-smoke.mjs",
+    "smoke:party": "node scripts/party-smoke.mjs"
   },
   "dependencies": {
     "phaser": "^3.90.0",

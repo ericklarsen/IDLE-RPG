@@ -14,6 +14,7 @@ export const DOCK = {
 
 const MENU_PAGES = {
   RIFT: '.menu-rift',
+  PARTY: '.menu-party',
   EVENT: '.menu-event',
   MOUNTS: '.menu-mounts',
   WINGS: '.menu-wings',

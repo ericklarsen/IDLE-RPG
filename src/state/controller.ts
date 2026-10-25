@@ -34,7 +34,7 @@ import type {
 } from '../sim/types';
 import { substatText } from '../sim/upgrade';
 import { clearSave, loadSave, writeSave } from './save';
-import { setPartySlot } from '../sim/party';
+import { setPartySlot, type PartyView } from '../sim/party';
 import type { CharacterId } from '../sim/types';
 
 type Listener = (snapshot: HudSnapshot, log: string[]) => void;
@@ -136,6 +136,11 @@ class GameController {
     }
     if (result.ok) this.flushSave();
     this.publish();
+  }
+
+  /** Live roster for the PARTY screen. */
+  partyView(): PartyView {
+    return this.sim.partyView();
   }
 
   /** Puts a character into a party slot (or clears it) and rebuilds the roster. */
