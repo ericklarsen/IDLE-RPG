@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { sound } from '../../audio/sound';
+import { characterById } from '../../data/characters';
 import { costumeById } from '../../data/costumes';
 import { petById, type PetInfo } from '../../data/pets';
 import { mountById } from '../../data/mounts';
@@ -11,6 +12,7 @@ import { gameController } from '../../state/controller';
 import { isMotionReduced } from '../../state/motion';
 import type { Element, Enemy, SimEvent } from '../../sim/types';
 import { ensureHeroTexture, registerDummyTextures, SPRITE_SIZE } from '../dummy/assets';
+import { MATE_LIMIT, mateSpots } from '../layout';
 import { buzz } from '../haptics';
 
 const GROUND_Y = 370;
@@ -49,6 +51,14 @@ export class BattleScene extends Phaser.Scene {
   private streakUntil = 0;
   private enemyKnock?: Phaser.Tweens.Tween;
   private heroShadow!: Phaser.GameObjects.Ellipse;
+  /** The rest of the party, drawn behind the leader from the live roster. */
+  private matePool: {
+    id: string | null;
+    sprite: Phaser.GameObjects.Image;
+    shadow: Phaser.GameObjects.Ellipse;
+    ink: number;
+    applied: number;
+  }[] = [];
   private nearGround!: Phaser.GameObjects.TileSprite;
   private farGround!: Phaser.GameObjects.TileSprite;
   private dust!: Phaser.GameObjects.Particles.ParticleEmitter;
@@ -142,6 +152,22 @@ export class BattleScene extends Phaser.Scene {
       .setDepth(10);
     this.syncOutfit();
     this.startHeroIdle();
+
+    // Mates stand behind the leader. Four sprites are created up front and
+    // shown or hidden as the party changes, so joining never restarts a scene.
+    for (let i = 0; i < MATE_LIMIT; i += 1) {
+      const shadow = this.add
+        .ellipse(HERO_X, GROUND_Y + 2, 44, 11, 0x000000, 0.28)
+        .setDepth(4)
+        .setVisible(false);
+      const sprite = this.add
+        .image(HERO_X, GROUND_Y, 'hero')
+        .setOrigin(0.5, 1)
+        .setScale(1.6)
+        .setDepth(9)
+        .setVisible(false);
+      this.matePool.push({ id: null, sprite, shadow, ink: 0xffffff, applied: 0 });
+    }
 
     // The mount sits behind the knight, who is lifted into the saddle by
     // `syncMount`. Its shadow is wider so the beast reads as a separate body.
@@ -399,8 +425,58 @@ export class BattleScene extends Phaser.Scene {
     this.enemyContainer.setX(this.enemyX);
     this.enemyShadow.setX(this.enemyX);
 
+    this.syncMates(knightX, walking);
+
     this.dust.setPosition(knightX, GROUND_Y);
     this.dust.emitting = walking > 0.15;
+  }
+
+  /**
+   * Draws the rest of the party from the running simulation: a member who joins
+   * or leaves changes the row, and one who is downed fades to grey instead of
+   * disappearing, so the player can see they are out until the wave clears.
+   */
+  private syncMates(heroX: number, walking: number): void {
+    const mates = gameController.sim.mates;
+    const spots = mateSpots(heroX, mates.length);
+
+    for (let i = 0; i < this.matePool.length; i += 1) {
+      const entry = this.matePool[i];
+      const mate = mates[i];
+      const spot = spots[i];
+
+      if (!mate || !spot) {
+        if (entry.id !== null) {
+          entry.id = null;
+          entry.sprite.setVisible(false);
+          entry.shadow.setVisible(false);
+        }
+        continue;
+      }
+
+      if (entry.id !== mate.id) {
+        entry.id = mate.id;
+        const parsed = Number.parseInt(characterById(mate.id)?.color ?? '#ffffff', 16);
+        entry.ink = Number.isNaN(parsed) ? 0xffffff : parsed;
+        entry.applied = 0;
+      }
+
+      const tint = mate.down ? 0x666677 : entry.ink;
+      if (tint !== entry.applied) {
+        entry.applied = tint;
+        entry.sprite.setTint(tint);
+      }
+
+      entry.sprite
+        .setVisible(true)
+        .setX(spot.x)
+        .setScale(spot.scale)
+        .setAlpha(mate.down ? 0.3 : 1)
+        .setRotation(
+          mate.down ? 0 : walking * Math.sin(this.time.now / 90 + i * 1.3) * 0.05,
+        );
+      entry.shadow.setVisible(true).setX(spot.x);
+    }
   }
 
   /** Repaints the knight for the worn outfit plus the chosen palette accent. */

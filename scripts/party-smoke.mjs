@@ -120,6 +120,22 @@ await openSection(page, 'BATTLE');
 await page.waitForTimeout(400);
 console.log('hud strip after remove:', await page.locator('.party-strip').count());
 
+// A full party of five: the arena draws four mates behind the leader, and the
+// strip has to hold all five bars at once.
+await openSection(page, 'PARTY');
+for (const name of ['Ranger', 'Cleric', 'Mage', 'Rogue']) {
+  // Match the name plate, not any card whose description happens to mention it.
+  const card = page
+    .locator('.party-card')
+    .filter({ has: page.locator('.party-name', { hasText: name }) });
+  await card.getByRole('button', { name: 'ADD' }).click();
+  await page.waitForTimeout(250);
+}
+await openSection(page, 'BATTLE');
+await page.waitForTimeout(2000);
+console.log('full party pips:', await page.locator('.party-pip').count());
+console.log('full party hero:', await page.locator('.combat-line.hero .combat-name').innerText());
+console.log('canvas:', await page.locator('canvas').count());
 console.log('errors:', errors.length ? errors : 'none');
 await browser.close();
 if (errors.length > 0) process.exit(1);
