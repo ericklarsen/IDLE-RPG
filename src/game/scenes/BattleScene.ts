@@ -1,6 +1,5 @@
 import Phaser from 'phaser';
 import { sound } from '../../audio/sound';
-import { characterById } from '../../data/characters';
 import { costumeById } from '../../data/costumes';
 import { petById, type PetInfo } from '../../data/pets';
 import { mountById } from '../../data/mounts';
@@ -11,7 +10,7 @@ import { RARITY } from '../../data/items';
 import { gameController } from '../../state/controller';
 import { isMotionReduced } from '../../state/motion';
 import type { Element, Enemy, SimEvent } from '../../sim/types';
-import { ensureHeroTexture, registerDummyTextures, SPRITE_SIZE } from '../dummy/assets';
+import { ensureHeroTexture, mateTextureKey, registerDummyTextures, SPRITE_SIZE } from '../dummy/assets';
 import { enemySpots, MATE_LIMIT, mateSpots, PACK_LIMIT } from '../layout';
 import { buzz } from '../haptics';
 
@@ -62,7 +61,6 @@ export class BattleScene extends Phaser.Scene {
     id: string | null;
     sprite: Phaser.GameObjects.Image;
     shadow: Phaser.GameObjects.Ellipse;
-    ink: number;
     applied: number;
   }[] = [];
   private nearGround!: Phaser.GameObjects.TileSprite;
@@ -167,12 +165,12 @@ export class BattleScene extends Phaser.Scene {
         .setDepth(4)
         .setVisible(false);
       const sprite = this.add
-        .image(HERO_X, GROUND_Y, 'hero')
+        .image(HERO_X, GROUND_Y, 'mate-knight')
         .setOrigin(0.5, 1)
         .setScale(1.6)
         .setDepth(9)
         .setVisible(false);
-      this.matePool.push({ id: null, sprite, shadow, ink: 0xffffff, applied: 0 });
+      this.matePool.push({ id: null, sprite, shadow, applied: 0xffffff });
     }
 
     // The mount sits behind the knight, who is lifted into the saddle by
@@ -480,12 +478,13 @@ export class BattleScene extends Phaser.Scene {
 
       if (entry.id !== mate.id) {
         entry.id = mate.id;
-        const parsed = Number.parseInt(characterById(mate.id)?.color ?? '#ffffff', 16);
-        entry.ink = Number.isNaN(parsed) ? 0xffffff : parsed;
-        entry.applied = 0;
+        // Each roster character has its own build, so the row reads as a party
+        // instead of five copies of the leader.
+        entry.sprite.setTexture(mateTextureKey(mate.id));
       }
 
-      const tint = mate.down ? 0x666677 : entry.ink;
+      // A downed mate only greys out; the texture stays theirs for the comeback.
+      const tint = mate.down ? 0x666677 : 0xffffff;
       if (tint !== entry.applied) {
         entry.applied = tint;
         entry.sprite.setTint(tint);

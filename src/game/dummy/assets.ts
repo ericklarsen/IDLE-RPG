@@ -1,6 +1,7 @@
 import type Phaser from 'phaser';
+import { CHARACTERS } from '../../data/characters';
 import { paletteById, type PaletteId, type PaletteSlot } from '../../data/palettes';
-import type { CostumeTier } from '../../sim/types';
+import type { CharacterId, CostumeTier } from '../../sim/types';
 
 /**
  * Procedural 32x32 pixel-art sprites.
@@ -226,7 +227,12 @@ class PixelGrid {
   }
 }
 
-function hero(): PixelGrid {
+/**
+ * `outline: false` returns the raw figure so a variant (a hooded mate, a
+ * hat-wearing mage) can be painted over it and outlined once at the end. A
+ * second outline pass would grow the sprite by a ring of pixels.
+ */
+function hero(outline = true): PixelGrid {
   const g = new PixelGrid();
 
   // Cape behind the body, torn at the hem.
@@ -346,7 +352,7 @@ function hero(): PixelGrid {
   g.line(13, 2, 11, 4, C.crimsonDark);
   g.rect(14, 3, 1, 1, C.crimsonDark);
 
-  return g.outlined();
+  return outline ? g.outlined() : g;
 }
 
 function slime(): PixelGrid {
@@ -883,6 +889,271 @@ function outfitHero(tier: keyof typeof OUTFIT_PALETTES): PixelGrid {
   return hero().recolor(OUTFIT_PALETTES[tier]);
 }
 
+/* ── Roster mates ───────────────────────────────────────────────────────────
+ * A party mate used to be the knight with a coloured tint over it, which read
+ * as five copies of the leader. Each roster character now gets its own build:
+ * the same body repainted, its own headgear instead of the helm, and a prop in
+ * the right hand, so a five-row reads apart at 1.6x without new art files.
+ */
+
+/** Skin and eye colours kept out of the per-character palette swaps. */
+const MATE_FACE = '#e8b48a';
+const MATE_FACE_DARK = '#a86a4a';
+const MATE_EYE = '#241a38';
+
+/** Strips the knight's helm, crest included, leaving room for other headgear. */
+function bareHead(g: PixelGrid): void {
+  g.clearRect(7, 0, 19, 11);
+}
+
+/** Hood and cowl: a peak behind the skull falling onto the shoulders. */
+function hood(g: PixelGrid, cloth: string, clothDark: string, masked = false): void {
+  bareHead(g);
+  g.poly(
+    [
+      [16, 1],
+      [21, 4],
+      [23, 8],
+      [24, 12],
+      [8, 12],
+      [9, 8],
+      [11, 4],
+    ],
+    cloth,
+  );
+  // The opening is in shadow; the face sits one shade darker inside it.
+  g.poly(
+    [
+      [16, 4],
+      [21, 7],
+      [20, 11],
+      [12, 11],
+      [11, 7],
+    ],
+    clothDark,
+  );
+  g.rect(13, 6, 7, 5, MATE_FACE);
+  g.rect(13, 6, 7, 1, MATE_FACE_DARK);
+  g.rect(13, 10, 7, 1, MATE_FACE_DARK);
+  g.rect(14, 8, 1, 1, MATE_EYE);
+  g.rect(18, 8, 1, 1, MATE_EYE);
+  if (masked) {
+    g.rect(13, 9, 7, 2, clothDark);
+    g.rect(10, 12, 13, 1, clothDark);
+  }
+}
+
+/** Cleric cowl: cloth over the crown and jaw, face left open, gold circlet. */
+function cowl(g: PixelGrid, cloth: string, clothDark: string, trim: string): void {
+  bareHead(g);
+  g.ellipse(16, 8, 4.4, 4.8, MATE_FACE);
+  g.poly(
+    [
+      [16, 1],
+      [22, 4],
+      [23, 11],
+      [21, 13],
+      [11, 13],
+      [9, 11],
+      [10, 4],
+    ],
+    cloth,
+  );
+  g.clearRect(13, 6, 7, 6);
+  g.rect(13, 6, 7, 1, clothDark);
+  g.rect(14, 9, 1, 1, MATE_EYE);
+  g.rect(18, 9, 1, 1, MATE_EYE);
+  g.rect(15, 11, 3, 1, MATE_FACE_DARK);
+  g.rect(11, 5, 10, 1, trim);
+}
+
+/** Mage: brimmed hat with a bent cone, and a beard to fill the chest. */
+function wizardHat(g: PixelGrid, hat: string, hatDark: string, trim: string): void {
+  bareHead(g);
+  g.ellipse(16, 9, 4.4, 4.6, MATE_FACE);
+  g.rect(14, 9, 1, 1, MATE_EYE);
+  g.rect(18, 9, 1, 1, MATE_EYE);
+  g.poly(
+    [
+      [13, 12],
+      [19, 12],
+      [17, 15],
+      [15, 15],
+    ],
+    '#ded8cc',
+  );
+  g.ellipse(16, 6, 9.5, 2.2, hatDark);
+  g.ellipse(16, 5.4, 8.4, 1.5, hat);
+  g.poly(
+    [
+      [17, 0],
+      [21, 5],
+      [11, 5],
+    ],
+    hat,
+  );
+  g.line(17, 2, 14, 5, hatDark);
+  g.rect(11, 5, 10, 1, trim);
+}
+
+/** Kite shield strapped to the left arm; the tank reads as a wall. */
+function shieldProp(g: PixelGrid, plate: string, rim: string, boss: string): void {
+  g.poly(
+    [
+      [2, 11],
+      [9, 11],
+      [9, 18],
+      [5.5, 22],
+      [2, 18],
+    ],
+    rim,
+  );
+  g.poly(
+    [
+      [3, 12],
+      [8, 12],
+      [8, 17],
+      [5.5, 20],
+      [3, 17],
+    ],
+    plate,
+  );
+  g.rect(5, 14, 2, 4, boss);
+}
+
+/** Longbow: stave bulging away from the hand, string drawn straight. */
+function bowProp(g: PixelGrid, wood: string): void {
+  g.line(25, 8, 27, 12, wood);
+  g.line(27, 12, 28, 17, wood);
+  g.line(28, 17, 27, 22, wood);
+  g.line(27, 22, 25, 26, wood);
+  g.line(25, 8, 25, 26, '#d8c79c');
+  g.rect(22, 18, 2, 2, wood);
+}
+
+/** Staff: shaft to the ground, head at the top, gold collar under the grip. */
+function staffProp(g: PixelGrid, shaft: string, head: string, glow: string): void {
+  g.rect(26, 9, 1, 21, shaft);
+  g.ellipse(26, 7, 2.6, 2.8, head);
+  g.ellipse(26, 6, 1.6, 1.8, glow);
+  g.rect(25, 14, 3, 1, head);
+}
+
+/** Dagger held point-up; short enough not to be mistaken for the leader blade. */
+function daggerProp(g: PixelGrid, blade: string, guard: string, grip: string): void {
+  g.rect(26, 13, 1, 9, blade);
+  g.rect(25, 22, 3, 1, guard);
+  g.rect(26, 23, 1, 4, grip);
+}
+
+interface MateLook {
+  /** Palette swap applied to the shared body before the headgear goes on. */
+  palette: Record<string, string>;
+  head?: (g: PixelGrid) => void;
+  prop?: (g: PixelGrid) => void;
+}
+
+const MATE_LOOKS: Record<CharacterId, MateLook> = {
+  knight: {
+    palette: {
+      [C.steelLight]: '#dbe6f6',
+      [C.steel]: '#94a9c9',
+      [C.steelDark]: '#5f7396',
+      [C.steelShadow]: '#3d4a66',
+      [C.gold]: '#e2e9f4',
+      [C.goldLight]: '#ffffff',
+      [C.goldDark]: '#98a6bd',
+      [C.crimson]: '#2f4a8f',
+      [C.crimsonDark]: '#1b2b57',
+      [C.leather]: '#33364a',
+      [C.leatherDark]: '#1e2030',
+    },
+    prop: (g) => shieldProp(g, '#94a9c9', '#5f7396', '#e2e9f4'),
+  },
+  ranger: {
+    palette: {
+      [C.steelLight]: '#e5d3a8',
+      [C.steel]: '#b08f52',
+      [C.steelDark]: '#7c6234',
+      [C.steelShadow]: '#4f3f21',
+      [C.gold]: '#e0a53a',
+      [C.goldLight]: '#ffd88a',
+      [C.goldDark]: '#a06f1c',
+      [C.crimson]: '#3f6b3a',
+      [C.crimsonDark]: '#24401f',
+      [C.leather]: '#3a2c1b',
+      [C.leatherDark]: '#221a0f',
+    },
+    head: (g) => hood(g, '#39603a', '#223f20'),
+    prop: (g) => bowProp(g, '#7c5a2e'),
+  },
+  cleric: {
+    palette: {
+      [C.steelLight]: '#eaf7f8',
+      [C.steel]: '#a9d5dc',
+      [C.steelDark]: '#6fa6b0',
+      [C.steelShadow]: '#46707a',
+      [C.gold]: '#f2e7b8',
+      [C.goldLight]: '#fffbe6',
+      [C.goldDark]: '#b8a468',
+      [C.crimson]: '#2f6f86',
+      [C.crimsonDark]: '#1d4a5c',
+      [C.leather]: '#2f4150',
+      [C.leatherDark]: '#1c2a33',
+    },
+    head: (g) => cowl(g, '#e9f4f5', '#8fb6bd', '#f2e7b8'),
+    prop: (g) => staffProp(g, '#8a6a44', '#e3b34f', '#fff6cc'),
+  },
+  mage: {
+    palette: {
+      [C.steelLight]: '#ffd9c4',
+      [C.steel]: '#e08b6a',
+      [C.steelDark]: '#a85a42',
+      [C.steelShadow]: '#6b3527',
+      [C.gold]: '#ffb347',
+      [C.goldLight]: '#ffe0a0',
+      [C.goldDark]: '#b8721f',
+      [C.crimson]: '#8d2a24',
+      [C.crimsonDark]: '#571511',
+      [C.leather]: '#3a2430',
+      [C.leatherDark]: '#231520',
+    },
+    head: (g) => wizardHat(g, '#8d2a24', '#571511', '#ffb347'),
+    prop: (g) => staffProp(g, '#5b3a2a', '#ff8a3d', '#ffd9a0'),
+  },
+  rogue: {
+    palette: {
+      [C.steelLight]: '#cfc2ec',
+      [C.steel]: '#8f7cb8',
+      [C.steelDark]: '#5f4e86',
+      [C.steelShadow]: '#3c2f5c',
+      [C.gold]: '#b9a3e0',
+      [C.goldLight]: '#e6dcff',
+      [C.goldDark]: '#7c66a8',
+      [C.crimson]: '#4a2c6b',
+      [C.crimsonDark]: '#2b1742',
+      [C.leather]: '#2f2340',
+      [C.leatherDark]: '#1c1528',
+    },
+    head: (g) => hood(g, '#4a2c6b', '#2b1742', true),
+    prop: (g) => daggerProp(g, '#cfc2ec', '#b9a3e0', '#2b1742'),
+  },
+};
+
+/** Builds the arena sprite for one roster character. */
+export function mateGrid(id: CharacterId): PixelGrid {
+  const look = MATE_LOOKS[id];
+  const grid = hero(false).recolor(look.palette);
+  look.head?.(grid);
+  look.prop?.(grid);
+  return grid.outlined();
+}
+
+/** Texture key for a mate; the builders below register one per character. */
+export function mateTextureKey(id: CharacterId): string {
+  return `mate-${id}`;
+}
+
 /** Semantic palette slots mapped onto the concrete knight colours. */
 const PALETTE_SLOTS: Record<PaletteSlot, string> = {
   gold: C.gold,
@@ -1222,6 +1493,9 @@ const BUILDERS: Record<string, () => PixelGrid> = {
   'hero-platinum': () => outfitHero('platinum'),
   'hero-diamond': () => outfitHero('diamond'),
   'hero-emerald': () => outfitHero('emerald'),
+  ...(Object.fromEntries(
+    CHARACTERS.map((entry) => [mateTextureKey(entry.id), () => mateGrid(entry.id)]),
+  ) as Record<string, () => PixelGrid>),
   slime,
   bat,
   skeleton,
