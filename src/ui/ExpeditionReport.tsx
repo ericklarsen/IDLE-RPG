@@ -21,6 +21,9 @@ export default function ExpeditionReport({ report, onClaim }: Props) {
   useDialog(cardRef, onClaim);
   const snapshot = useGameStore();
   const hints = offlineHints(snapshot, report);
+  // The estimate covers the whole roster, so the report must not credit one
+  // knight for a party's night of farming.
+  const partySize = snapshot.party.members.length;
 
   return (
     <div className="report-backdrop">
@@ -35,7 +38,8 @@ export default function ExpeditionReport({ report, onClaim }: Props) {
         <span className="eyebrow">EXPEDITION REPORT</span>
         <h2>Welcome back</h2>
         <p className="report-duration">
-          Your knight farmed for <b>{duration(report.seconds)}</b>
+          Your {partySize > 1 ? 'party' : 'knight'} farmed for{' '}
+          <b>{duration(report.seconds)}</b>
           {report.capped && (
             <span className="report-cap">CAP {hoursLabel(report.capSeconds).toUpperCase()}</span>
           )}

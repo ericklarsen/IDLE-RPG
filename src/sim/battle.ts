@@ -1822,22 +1822,57 @@ export class BattleSim {
     return ascendBonuses(this.ascension.nodes);
   }
 
-  /** Rates and rewards for time spent away; does not mutate the game yet. */
-  estimateOffline(elapsedMs: number): OfflineReport | null {
-    // Away time is farmed on the safe stage; the hero never pushes unattended.
-    const rates = stageRates(this.farmStage);
-    const dps = offlineDps({
+  /**
+   * Damage per second the whole roster brings to an unattended fight: the
+   * leader with its loadout and pet, plus every mate's own swing and roster
+   * signature. Downed members are counted like the wave reset heals them, and
+   * surge is left out on both sides of the comparison for consistency.
+   */
+  private offlinePartyDps(enemyDef: number): number {
+    const enemyElement = this.enemy.element;
+    let dps = offlineDps({
       attackPower: this.attackPower,
       atkSpeed: this.hero.atkSpeed,
       crit: this.hero.crit,
       critDmg: this.hero.critDmg,
-      def: rates.def,
+      def: enemyDef,
       skills: this.skills,
       attuned: this.attuned.element,
       elemBonus: this.elemBonus,
-      enemyElement: this.enemy.element,
+      enemyElement,
       petDps: petDpsFor(this.pets, this.hero.atk),
+      signature: characterById(activeCharacterId(this.party))?.skill ?? null,
     });
+
+    for (const mate of this.mates) {
+      dps += offlineDps({
+        attackPower: mate.atk,
+        atkSpeed: mate.atkSpeed,
+        crit: mate.crit,
+        critDmg: mate.critDmg,
+        def: enemyDef,
+        // Mates fight with their signature, not with the leader's loadout.
+        skills: { active: [null, null, null], passive: null, levels: {} },
+        attuned: null,
+        elemBonus: 0,
+        enemyElement,
+        signature: characterById(mate.id)?.skill ?? null,
+      });
+    }
+
+    return dps;
+  }
+
+  /** Rates and rewards for time spent away; does not mutate the game yet. */
+  estimateOffline(elapsedMs: number): OfflineReport | null {
+    // Away time is farmed on the safe stage; the hero never pushes unattended.
+    // A party keeps swinging too, so the estimate counts every roster member's
+    // own attack and signature and the wider, weaker pack the wave spawns —
+    // a five-member party must not be reported as a solo run. The pack is
+    // credited the measured share of splash, never the nominal 0,3.
+    const partySize = partyMembers(this.party).length;
+    const rates = stageRates(this.farmStage, partySize);
+    const dps = this.offlinePartyDps(rates.def);
 
     const plan = planOffline({
       elapsedMs,
@@ -1848,6 +1883,10 @@ export class BattleSim {
       rates,
       goldPct: boostBonuses(this.boosts).goldPct + this.ascendBonuses.goldPct,
       capSeconds: this.ascendBonuses.offlineCapSeconds,
+      pack: {
+        count: Math.min(BALANCE.enemyPackCap, partySize),
+        splash: BALANCE.packSplash,
+      },
     });
     if (!plan) return null;
 
