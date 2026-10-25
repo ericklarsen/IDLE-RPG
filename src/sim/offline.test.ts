@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { BALANCE } from '../data/balance';
+import { INVENTORY_CAP } from '../data/items';
 import { BattleSim } from './battle';
 import { offlineDps, planOffline, projectLevels, stageRates } from './offline';
 import { normalizeSkills } from './skills';
@@ -182,7 +183,7 @@ describe('BattleSim offline', () => {
 
   it('inventory penuh tidak overflow saat klaim', () => {
     const sim = new BattleSim(makeSave({ maxStage: 5 }), seeded(2));
-    sim.inventory = Array.from({ length: 24 }, (_, index) => ({
+    sim.inventory = Array.from({ length: INVENTORY_CAP }, (_, index) => ({
       id: `it_full_${index}`,
       slot: 'ring',
       rarity: 'common',
@@ -205,7 +206,7 @@ describe('BattleSim offline', () => {
     const goldBefore = sim.gold;
     sim.applyOffline(report!);
 
-    expect(sim.inventory).toHaveLength(24);
+    expect(sim.inventory).toHaveLength(INVENTORY_CAP);
     expect(sim.gold).toBeGreaterThan(goldBefore);
   });
 });

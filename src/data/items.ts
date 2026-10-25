@@ -11,6 +11,11 @@ export const SLOT_LABEL: Record<Slot, string> = {
   amulet: 'Amulet',
 };
 
+// One bag for the whole roster. Raising this is not a free capacity change:
+// a bigger bag keeps more per-slot candidates alive, so EQUIP BEST gets better
+// gear. Measured through scripts/pacing.ts, 40 slots cut stage 50 from 7.6h to
+// 6.1h and pushed surge uptime to 24.3%, outside its 15-20% band. It stays 24
+// until the arc is re-baselined on purpose.
 export const INVENTORY_CAP = 24;
 
 export interface RarityInfo {

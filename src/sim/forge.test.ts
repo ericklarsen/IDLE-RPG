@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { FORGE_COST } from '../data/forge';
+import { INVENTORY_CAP } from '../data/items';
 import { BattleSim } from './battle';
 import { globalWave } from './formulas';
 import type { Item, Rarity, SaveData } from './types';
@@ -195,7 +196,7 @@ describe('forge', () => {
   });
 
   it('craft saat bag penuh tetap menyimpan hasil dan tidak menghilangkan item lain', () => {
-    const inventory = Array.from({ length: 24 }, (_, index) =>
+    const inventory = Array.from({ length: INVENTORY_CAP }, (_, index) =>
       item(`it_${index + 1}`, 'common', index + 1),
     );
     const sim = new BattleSim(
@@ -210,7 +211,7 @@ describe('forge', () => {
 
     const result = sim.craftSetPiece('weapon', 'ashforged');
     expect(result.ok).toBe(true);
-    expect(sim.inventory).toHaveLength(24);
+    expect(sim.inventory).toHaveLength(INVENTORY_CAP);
     expect(sim.inventory.some((entry) => entry.id === result.item!.id)).toBe(true);
     // The auto-salvaged weakest item still pays its dust back.
     expect(sim.dust).toBeGreaterThanOrEqual(0);

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { INVENTORY_CAP } from '../data/items';
 import { BattleSim } from './battle';
 import type { Item, SaveData } from './types';
 
@@ -132,7 +133,7 @@ describe('equipment', () => {
   });
 
   it('inventory penuh auto-salvage item terlemah saat drop', () => {
-    const items = Array.from({ length: 24 }, (_, index) =>
+    const items = Array.from({ length: INVENTORY_CAP }, (_, index) =>
       makeItem({ id: `it_${index + 1}`, power: index + 1, salvage: 10 }),
     );
     const sim = new BattleSim(makeSave({ inventory: items, itemSeq: 30 }));
@@ -140,7 +141,7 @@ describe('equipment', () => {
     const before = sim.gold;
     (sim as unknown as { maybeDropLoot: (kind: 'boss') => void }).maybeDropLoot('boss');
 
-    expect(sim.inventory).toHaveLength(24);
+    expect(sim.inventory).toHaveLength(INVENTORY_CAP);
     expect(sim.gold).toBeGreaterThan(before);
   });
 
