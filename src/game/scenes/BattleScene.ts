@@ -16,6 +16,12 @@ import { buzz } from '../haptics';
 const GROUND_Y = 370;
 const HERO_X = 105;
 const ENEMY_X = 290;
+/** The knight drifts this far forward while marching; enemies walk in from further out. */
+const HERO_STEP = 16;
+const ENEMY_ENTER = 110;
+/** Ground scroll in pixels per second: idle drift, then the march after a kill. */
+const WALK_IDLE = 6;
+const WALK_BURST = 96;
 const STEP = 1 / 30;
 /** Floating labels stay above the hero's helm, clear of the HUD panel. */
 const HERO_TEXT_Y = GROUND_Y - 74;
@@ -41,8 +47,16 @@ export class BattleScene extends Phaser.Scene {
   private redFlash!: Phaser.GameObjects.Rectangle;
   private streak = 0;
   private streakUntil = 0;
-  private heroKnock?: Phaser.Tweens.Tween;
   private enemyKnock?: Phaser.Tweens.Tween;
+  private heroShadow!: Phaser.GameObjects.Ellipse;
+  private nearGround!: Phaser.GameObjects.TileSprite;
+  private farGround!: Phaser.GameObjects.TileSprite;
+  private dust!: Phaser.GameObjects.Particles.ParticleEmitter;
+  /** Visual-only march offsets; combat still resolves at HERO_X / ENEMY_X. */
+  private heroOffset = 0;
+  private heroPush = 0;
+  private enemyOffset = 0;
+  private walkTimer = 0;
   private wisp?: Phaser.GameObjects.Image;
   private mountSprite?: Phaser.GameObjects.Image;
   private mountShadow?: Phaser.GameObjects.Ellipse;
@@ -76,6 +90,15 @@ export class BattleScene extends Phaser.Scene {
 
     this.add.image(195, 422, 'bg').setDepth(0);
 
+    // Two mark strips scroll at different speeds, so the arena reads as travel
+    // while the painted backdrop stays put.
+    this.farGround = this.add
+      .tileSprite(195, 353, 390, 34, 'ground-strip')
+      .setTileScale(0.7)
+      .setAlpha(0.45)
+      .setDepth(1);
+    this.nearGround = this.add.tileSprite(195, 402, 390, 78, 'ground-strip').setDepth(3);
+
     const fog = this.add.rectangle(195, 640, 390, 190, 0x7a5a8a, 0.06).setDepth(2);
     this.tweens.add({
       targets: fog,
@@ -101,7 +124,9 @@ export class BattleScene extends Phaser.Scene {
       })
       .setDepth(3);
 
-    this.add.ellipse(HERO_X, GROUND_Y + 2, 58, 14, 0x000000, 0.35).setDepth(4);
+    this.heroShadow = this.add
+      .ellipse(HERO_X, GROUND_Y + 2, 58, 14, 0x000000, 0.35)
+      .setDepth(4);
     this.enemyShadow = this.add
       .ellipse(ENEMY_X, GROUND_Y + 2, 58, 14, 0x000000, 0.35)
       .setDepth(4);
@@ -191,6 +216,24 @@ export class BattleScene extends Phaser.Scene {
         emitting: false,
       })
       .setDepth(40);
+
+    // Kicked-up ground, only while the knight is actually marching.
+    this.dust = this.add
+      .particles(0, 0, 'spark', {
+        x: { min: -12, max: 12 },
+        y: { min: -5, max: 1 },
+        lifespan: { min: 220, max: 480 },
+        speed: { min: 10, max: 44 },
+        angle: { min: 200, max: 340 },
+        gravityY: -18,
+        scale: { start: 0.55, end: 0 },
+        alpha: { start: 0.45, end: 0 },
+        tint: [0xd9c6ff, 0xb79bff, 0x8f7bd6],
+        blendMode: 'ADD',
+        frequency: 90,
+        emitting: false,
+      })
+      .setDepth(5);
 
     // One emitter per wisp element, so each hit reads as fire, ice, or storm
     // without swapping textures on the shared burst.
@@ -310,6 +353,54 @@ export class BattleScene extends Phaser.Scene {
     }
 
     this.syncSlowTint();
+    this.updateMarch(dt);
+  }
+
+  /** Screen position of the knight, including the march and knockback offsets. */
+  private get heroX(): number {
+    return HERO_X + this.heroOffset + this.heroPush;
+  }
+
+  private get enemyX(): number {
+    return ENEMY_X + this.enemyOffset;
+  }
+
+  /**
+   * Visual march: the knight drifts forward after a kill, the ground strips
+   * scroll, and dust trails his feet. Every cue comes from events the
+   * simulation already emits, so combat timing and determinism are untouched.
+   */
+  private updateMarch(dt: number): void {
+    const reduce = isMotionReduced();
+    const marching = !reduce && this.walkTimer > 0;
+    const target = marching ? HERO_STEP : 0;
+
+    this.heroOffset += (target - this.heroOffset) * Math.min(1, dt * 7);
+    this.heroPush += (0 - this.heroPush) * Math.min(1, dt * 16);
+    this.enemyOffset = Math.max(0, this.enemyOffset - dt * 460);
+    this.walkTimer = Math.max(0, this.walkTimer - dt);
+
+    const walking = marching ? Math.min(1, this.walkTimer / 0.55) : 0;
+    const speed = reduce ? 0 : WALK_IDLE + walking * WALK_BURST;
+    this.nearGround.tilePositionX += speed * dt;
+    // The far strip is drawn at 0.7 scale and moves at 40% of the near speed,
+    // which is what sells the depth.
+    this.farGround.tilePositionX += (speed * dt * 0.4) / 0.7;
+
+    const knightX = this.heroX;
+    this.heroContainer.setX(knightX);
+    this.heroShadow.setX(knightX);
+    this.mountShadow?.setX(knightX + 2);
+    this.mountSprite?.setX(knightX + 2);
+    this.wingSprite?.setX(knightX);
+    this.wisp?.setX(knightX + 36);
+    this.heroSprite.setRotation(walking * Math.sin(this.time.now / 85) * 0.05);
+
+    this.enemyContainer.setX(this.enemyX);
+    this.enemyShadow.setX(this.enemyX);
+
+    this.dust.setPosition(knightX, GROUND_Y);
+    this.dust.emitting = walking > 0.15;
   }
 
   /** Repaints the knight for the worn outfit plus the chosen palette accent. */
@@ -337,12 +428,12 @@ export class BattleScene extends Phaser.Scene {
 
   /** Each wisp leaves its own mark: flame, frost shards, or a lightning arc. */
   private petBurst(info: PetInfo | undefined): void {
-    const x = ENEMY_X;
+    const x = this.enemyX;
     const y = this.enemyTop() + 22;
 
     if (info?.effect === 'slow') {
       this.frostEmitter.explode(7, x, y);
-      this.floatText(ENEMY_X - 30, this.enemyTop() - 46, 'CHILL', '#9fe8ff', 12);
+      this.floatText(this.enemyX - 30, this.enemyTop() - 46, 'CHILL', '#9fe8ff', 12);
       return;
     }
 
@@ -361,7 +452,7 @@ export class BattleScene extends Phaser.Scene {
 
     const startX = this.wisp.x;
     const startY = this.wisp.y;
-    const endX = ENEMY_X - 8;
+    const endX = this.enemyX - 8;
     const endY = this.enemyTop() + 18;
 
     const bolt = this.add.graphics().setDepth(19);
@@ -655,11 +746,11 @@ export class BattleScene extends Phaser.Scene {
     switch (event.type) {
       case 'hit':
         if (event.target === 'enemy') {
-          this.showDamage(ENEMY_X, this.enemyTop() - 12, event.damage, event.crit);
+          this.showDamage(this.enemyX, this.enemyTop() - 12, event.damage, event.crit);
           if (event.advantage === 'strong') {
-            this.floatText(ENEMY_X + 22, this.enemyTop() - 48, 'WEAK', '#ffcf5a', 13);
+            this.floatText(this.enemyX + 22, this.enemyTop() - 48, 'WEAK', '#ffcf5a', 13);
           } else if (event.advantage === 'weak') {
-            this.floatText(ENEMY_X + 22, this.enemyTop() - 48, 'RESIST', '#8fa3c8', 13);
+            this.floatText(this.enemyX + 22, this.enemyTop() - 48, 'RESIST', '#8fa3c8', 13);
           }
           this.flashEnemy();
           this.spawnSlash();
@@ -802,7 +893,7 @@ export class BattleScene extends Phaser.Scene {
       case 'kill':
         this.burstEmitter.explode(
           (event.kind === 'boss' ? 26 : 10) + Math.min(12, this.streak * 2),
-          ENEMY_X,
+          this.enemyX,
           this.enemyTop() + 24,
         );
         this.bumpStreak();
@@ -814,8 +905,11 @@ export class BattleScene extends Phaser.Scene {
           this.hitStop = Math.max(this.hitStop, 0.14);
         }
         this.tweens.add({ targets: this.enemyContainer, alpha: 0.25, duration: 160 });
+        // Walk on to the next encounter instead of standing over the corpse.
+        this.walkTimer = Math.max(this.walkTimer, 1.1);
         break;
       case 'spawn': {
+        this.enemyOffset = isMotionReduced() ? 0 : ENEMY_ENTER;
         const token = ++this.spawnToken;
         this.time.delayedCall(150, () => {
           if (this.spawnToken === token) this.syncEnemy(event.enemy);
@@ -830,6 +924,7 @@ export class BattleScene extends Phaser.Scene {
         break;
       case 'stageup':
         this.showBanner(`STAGE ${event.stage}`);
+        this.walkTimer = Math.max(this.walkTimer, 2.2);
         sound.play('stage');
         break;
       case 'ascend':
@@ -1030,7 +1125,7 @@ export class BattleScene extends Phaser.Scene {
   private spawnSlash(): void {
     const slash = this.add
       .image(
-        ENEMY_X + Phaser.Math.Between(-8, 8),
+        this.enemyX + Phaser.Math.Between(-8, 8),
         this.enemyTop() + Phaser.Math.Between(18, 42),
         'slash',
       )
@@ -1068,16 +1163,9 @@ export class BattleScene extends Phaser.Scene {
 
   /** Hero takes a hit: small knockback plus a red edge pulse. */
   private hitHero(): void {
-    this.heroKnock?.stop();
-    this.heroContainer.setX(HERO_X);
-    this.heroKnock = this.tweens.add({
-      targets: this.heroContainer,
-      x: HERO_X - 9,
-      duration: 90,
-      yoyo: true,
-      ease: 'Quad.easeOut',
-      onComplete: () => this.heroContainer.setX(HERO_X),
-    });
+    // Fed through the march offset instead of a tween, so the walk animation
+    // and the knockback never fight over heroContainer.x.
+    this.heroPush = -9;
 
     this.tweens.killTweensOf(this.redFlash);
     this.redFlash.setAlpha(0.2);
@@ -1090,7 +1178,7 @@ export class BattleScene extends Phaser.Scene {
 
     if (kind === 'damage') {
       const orb = this.add
-        .image(HERO_X + 14, GROUND_Y - 58, 'orb')
+        .image(this.heroX + 14, GROUND_Y - 58, 'orb')
         .setTint(tint)
         .setScale(2)
         .setDepth(36)
@@ -1099,13 +1187,13 @@ export class BattleScene extends Phaser.Scene {
 
       this.tweens.add({
         targets: orb,
-        x: ENEMY_X,
+        x: this.enemyX,
         y: targetY,
         scale: 2.8,
         duration: 260,
         ease: 'Quad.easeIn',
         onComplete: () => {
-          this.burstEmitter.explode(10, ENEMY_X, targetY);
+          this.burstEmitter.explode(10, this.enemyX, targetY);
           orb.destroy();
         },
       });

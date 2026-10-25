@@ -1474,6 +1474,66 @@ function createSparkTexture(scene: Phaser.Scene): void {
   scene.textures.addCanvas('spark', canvas);
 }
 
+/**
+ * Tileable ground marks that scroll under the fighters.
+ *
+ * The arena floor is a painted gradient, so the strip only adds pebbles, tufts,
+ * and scratches — enough to read as travel without covering the ground. Marks
+ * that cross the edge are drawn twice, so the texture repeats without a seam.
+ */
+function createGroundStripTexture(scene: Phaser.Scene): void {
+  const size = 160;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+
+  const rand = mulberry32(0x51de5eed);
+  const across = (x: number, draw: (atX: number) => void) => {
+    draw(x);
+    if (x < 14) draw(x + size);
+    if (x > size - 14) draw(x - size);
+  };
+
+  for (let i = 0; i < 34; i += 1) {
+    const x = rand() * size;
+    const y = rand() * size;
+    const w = 5 + rand() * 20;
+    ctx.fillStyle = `rgba(226, 205, 255, ${0.04 + rand() * 0.06})`;
+    across(x, (atX) => ctx.fillRect(atX, y, w, 2));
+  }
+
+  for (let i = 0; i < 16; i += 1) {
+    const x = rand() * size;
+    const y = rand() * size;
+    const rx = 1.5 + rand() * 2.5;
+    ctx.fillStyle = `rgba(24, 12, 48, ${0.25 + rand() * 0.2})`;
+    across(x, (atX) => {
+      ctx.beginPath();
+      ctx.ellipse(atX, y, rx, rx * 0.6, 0, 0, Math.PI * 2);
+      ctx.fill();
+    });
+  }
+
+  for (let i = 0; i < 10; i += 1) {
+    const x = rand() * size;
+    const y = rand() * size;
+    const h = 3 + rand() * 5;
+    ctx.strokeStyle = 'rgba(176, 152, 235, 0.3)';
+    ctx.lineWidth = 1;
+    across(x, (atX) => {
+      ctx.beginPath();
+      ctx.moveTo(atX, y);
+      ctx.lineTo(atX + 1, y - h);
+      ctx.stroke();
+    });
+  }
+
+  scene.textures.addCanvas('ground-strip', canvas);
+}
+
 /** Sprite builders, exposed so the preview script can render a contact sheet. */
 export const SPRITE_BUILDERS = BUILDERS;
 
@@ -1486,4 +1546,5 @@ export function registerDummyTextures(scene: Phaser.Scene): void {
   if (!scene.textures.exists('ring')) createRingTexture(scene);
   if (!scene.textures.exists('slash')) createSlashTexture(scene);
   if (!scene.textures.exists('bg')) createBackgroundTexture(scene);
+  if (!scene.textures.exists('ground-strip')) createGroundStripTexture(scene);
 }
