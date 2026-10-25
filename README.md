@@ -1,5 +1,7 @@
 # Idle Forge — Prototype M0–M8
 
+[![CI](https://github.com/ericklarsen/IDLE-RPG/actions/workflows/ci.yml/badge.svg)](https://github.com/ericklarsen/IDLE-RPG/actions/workflows/ci.yml)
+
 Idle RPG 2D auto-battle untuk mobile web (portrait 390×844). Prototype ini memakai **dummy art prosedural** — belum ada file gambar, semua sprite dan background digambar dari kode (sprite karakter 32×32 dengan shading 3 tone, background vector-ish 390×844). Aset final digenerate nanti setelah gameplay-nya terkunci.
 
 ## Menjalankan

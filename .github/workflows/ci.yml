@@ -14,8 +14,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
-      # The smoke suites are not run here, so skip Playwright's ~400 MB browser
-      # download during `npm ci` and keep the job to a couple of minutes.
+      # Browser smoke tests live in the `smoke` job, so skip Playwright's
+      # ~400 MB browser download here and keep this job to a couple of minutes.
       PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
 
     steps:
@@ -40,3 +40,89 @@ jobs:
       # Initial-payload budget (460 KB gzip) — reads dist/, so it must follow build.
       - name: Bundle budget
         run: npm run check:bundle
+
+  smoke:
+    name: Playwright smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # The smoke scripts drive Chromium; --with-deps also installs its system libs.
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Start dev server
+        run: |
+          npm run dev > dev-server.log 2>&1 &
+          for attempt in $(seq 1 60); do
+            if curl -sf -o /dev/null http://localhost:5173/; then
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "dev server did not come up"
+          cat dev-server.log
+          exit 1
+
+      # Every suite that runs against the dev server. The loop aborts on the
+      # first failure, and ::group:: keeps one script's output collapsed.
+      - name: Dev smoke suites
+        run: |
+          for script in \
+            smoke \
+            inventory-smoke upgrade-smoke enchant-smoke skills-smoke \
+            forge-smoke sets-smoke codex-smoke \
+            offline-smoke save-smoke ascend-smoke \
+            rift-smoke trial-smoke event-smoke \
+            costume-smoke palette-smoke \
+            pets-smoke mount-smoke wing-smoke \
+            arena-smoke league-smoke \
+            forecast-smoke juice-smoke surge-smoke audio-smoke cheat-smoke; do
+            echo "::group::$script"
+            node "scripts/$script.mjs"
+            echo "::endgroup::"
+          done
+
+      # Production build on :4173: service worker, keyboard dialog handling,
+      # and browser-back history only behave like this with the real build.
+      - name: Build and start preview
+        run: |
+          npm run build
+          npm run preview > preview-server.log 2>&1 &
+          for attempt in $(seq 1 60); do
+            if curl -sf -o /dev/null http://localhost:4173/; then
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "preview server did not come up"
+          cat preview-server.log
+          exit 1
+
+      - name: Production smoke suites
+        run: |
+          for script in a11y-smoke back-smoke polish-smoke; do
+            echo "::group::$script"
+            node "scripts/$script.mjs"
+            echo "::endgroup::"
+          done
+
+      # Screenshots the suites leave behind, kept for debugging a red run.
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-artifacts
+          path: artifacts/
+          retention-days: 7
+          if-no-files-found: ignore
