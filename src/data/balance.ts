@@ -24,6 +24,11 @@ export const BALANCE = {
   // A normal wave fields one monster per party member, up to this many. Each
   // one's HP and ATK is divided by √count, so the wave grows, not the numbers.
   enemyPackCap: 5,
+  // Share of a hit on the front monster that also lands on every monster
+  // behind it. The splash can never kill, so the wave still clears front to
+  // back; it only stops a five-monster wave from being five solo fights in a
+  // row. Solo runs face one monster, so their curve is untouched.
+  packSplash: 0.3,
 
   // Item drop chance per kill, by enemy kind. Offline reads these too, so the
   // expedition report and the live run agree on what an hour is worth.

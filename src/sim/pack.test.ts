@@ -37,6 +37,7 @@ function packSim(count: number, save: Partial<SaveData> = {}): BattleSim {
 }
 
 type Poked = { killEnemy: () => void; wave: number; spawnPack: () => void };
+type Splasher = { splashPack: (damage: number) => void };
 function killFront(sim: BattleSim): void {
   (sim as unknown as Poked).killEnemy();
 }
@@ -167,6 +168,50 @@ describe('packed waves', () => {
 
     expect(drops(packSim(1))).toBe(0);
     expect(drops(packSim(5))).toBe(1);
+  });
+
+  it('splashes a share of each hit onto the monsters behind the front one', () => {
+    const sim = packSim(5);
+    const back = sim.enemies.slice(1);
+    const before = back.map((enemy) => enemy.hp);
+
+    (sim as unknown as Splasher).splashPack(10);
+
+    const share = Math.max(1, Math.round(10 * BALANCE.packSplash));
+    expect(back.map((enemy) => enemy.hp)).toEqual(before.map((hp) => hp - share));
+  });
+
+  it('never lets splash land the kill, so the wave still clears front to back', () => {
+    const sim = packSim(5);
+
+    (sim as unknown as Splasher).splashPack(10_000);
+
+    expect(sim.enemies).toHaveLength(5);
+    expect(sim.enemy).toBe(sim.enemies[0]);
+    expect(sim.enemies.slice(1).every((enemy) => enemy.hp === 1)).toBe(true);
+  });
+
+  it('leaves a solo run untouched: one monster has nothing behind it', () => {
+    const sim = packSim(1);
+    const hp = sim.enemy.hp;
+
+    (sim as unknown as Splasher).splashPack(500);
+
+    expect(sim.enemy.hp).toBe(hp);
+  });
+
+  it('wears the pack down while the front monster is still standing', () => {
+    const sim = packSim(5);
+    // A front monster that cannot die, so this measures the wiring of splash
+    // through the real attacks instead of how fast the party clears a wave.
+    sim.enemy.maxHp = 1_000_000;
+    sim.enemy.hp = 1_000_000;
+
+    for (let i = 0; i < 30 * 4; i += 1) sim.tick(1 / 30);
+
+    const back = sim.enemies.slice(1);
+    expect(back).toHaveLength(4);
+    expect(back.every((enemy) => enemy.hp < enemy.maxHp)).toBe(true);
   });
 
   it('lets every monster in the wave swing, so the pack hits √count harder', () => {

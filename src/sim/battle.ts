@@ -2212,6 +2212,7 @@ export class BattleSim {
       this.enemy.hp -= damage;
       this.damageMarks.push({ t: this.time, dmg: damage });
       this.addSurgeCharge(damage);
+      this.splashPack(damage);
       this.emit({
         type: 'hit',
         target: 'enemy',
@@ -3002,6 +3003,7 @@ export class BattleSim {
 
     this.enemy.hp -= damage;
     this.damageMarks.push({ t: this.time, dmg: damage });
+    this.splashPack(damage);
     this.emit({ type: 'companionHit', damage });
 
     if (info.effect === 'burn') {
@@ -3300,6 +3302,7 @@ export class BattleSim {
     );
     this.enemy.hp -= roll.damage;
     this.damageMarks.push({ t: this.time, dmg: roll.damage });
+    this.splashPack(roll.damage);
     this.emit({
       type: 'hit',
       target: 'enemy',
@@ -3328,6 +3331,7 @@ export class BattleSim {
       const damage = Math.max(1, Math.round(this.attackPower * power));
       this.enemy.hp -= damage;
       this.damageMarks.push({ t: this.time, dmg: damage });
+      this.splashPack(damage);
       this.emit({ type: 'mountSkill', name: info.skill.name, kind: 'damage', amount: damage });
       return;
     }
@@ -3362,6 +3366,7 @@ export class BattleSim {
       const damage = Math.max(1, Math.round(this.attackPower * power));
       this.enemy.hp -= damage;
       this.damageMarks.push({ t: this.time, dmg: damage });
+      this.splashPack(damage);
       this.emit({ type: 'wingSkill', name: info.skill.name, kind: 'damage', amount: damage });
       return;
     }
@@ -3382,6 +3387,32 @@ export class BattleSim {
     this.shield = Math.max(this.shield, amount);
     this.shieldTimer = Math.max(this.shieldTimer, 6);
     this.emit({ type: 'wingSkill', name: info.skill.name, kind: 'shield', amount });
+  }
+
+  /**
+   * A hit on the front monster washes over everyone behind it for a share of
+   * the damage. The splash never lands a killing blow: the monster in front
+   * still takes every kill, so rewards, drops and the front-to-back order of
+   * the wave stay exactly as they were, and the pack simply steps forward
+   * already wounded. A solo run fields one monster, so it pays nothing here.
+   */
+  private splashPack(damage: number): void {
+    if (this.pack.length <= 1 || damage <= 0) return;
+
+    const splash = Math.max(1, Math.round(damage * BALANCE.packSplash));
+    let total = 0;
+
+    for (let i = 1; i < this.pack.length; i += 1) {
+      const enemy = this.pack[i];
+      // Leaving one point of HP is what keeps the next monster killable by the
+      // front one, instead of a splash quietly paying out a kill.
+      const applied = Math.min(splash, enemy.hp - 1);
+      if (applied <= 0) continue;
+      enemy.hp -= applied;
+      total += applied;
+    }
+
+    if (total > 0) this.emit({ type: 'splash', damage: total });
   }
 
   /**
@@ -3935,6 +3966,7 @@ export class BattleSim {
 
     this.enemy.hp -= roll.damage;
     this.damageMarks.push({ t: this.time, dmg: roll.damage });
+    this.splashPack(roll.damage);
     this.emit({
       type: 'hit',
       target: 'enemy',
@@ -3990,6 +4022,7 @@ export class BattleSim {
 
       this.enemy.hp -= damage;
       this.damageMarks.push({ t: this.time, dmg: damage });
+      this.splashPack(damage);
       // Half charge, like a mate's basic swing: signatures must not inflate
       // the surge uptime the meter was calibrated against.
       this.addSurgeCharge(damage * 0.5);

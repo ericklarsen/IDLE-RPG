@@ -92,6 +92,8 @@ export class BattleScene extends Phaser.Scene {
   private heroTexture = 'hero';
   private accumulator = 0;
   private hitStop = 0;
+  /** Last splash flash, so a five-man party cannot strobe the back row. */
+  private splashAt = 0;
   private spawnToken = 0;
   private unsubscribe?: () => void;
 
@@ -920,6 +922,9 @@ export class BattleScene extends Phaser.Scene {
           if (!isMotionReduced()) this.cameras.main.shake(55, 0.002);
         }
         break;
+      case 'splash':
+        this.splashRow(event.damage);
+        break;
       case 'companionHit': {
         const info = petById(gameController.sim.pets.active);
         const color =
@@ -1233,6 +1238,36 @@ export class BattleScene extends Phaser.Scene {
       ease: 'Quad.easeOut',
       onComplete: () => this.enemySprite.setX(0),
     });
+  }
+
+  /**
+   * Splash has no health bar to move on the back row, so it gets a short flash
+   * on every monster behind the front one plus one small number for the whole
+   * row. A full party lands several hits a second, so the flash is throttled:
+   * the damage still happens, only the paint is skipped.
+   */
+  private splashRow(damage: number): void {
+    if (this.time.now - this.splashAt < 140) return;
+    this.splashAt = this.time.now;
+
+    const reduce = isMotionReduced();
+    let x = this.enemyX;
+    let top = this.enemyTop();
+    let lit = 0;
+    for (const entry of this.packPool) {
+      if (!entry.sprite.visible) continue;
+      lit += 1;
+      x = entry.sprite.x;
+      top = Math.min(top, entry.sprite.y - entry.sprite.displayHeight / 2);
+      if (reduce) continue;
+      entry.sprite.setTintFill(0xffffff);
+      this.time.delayedCall(55, () => {
+        if (entry.sprite.active) entry.sprite.clearTint();
+      });
+    }
+
+    if (lit === 0) return;
+    this.floatText(x, top - 6, `${damage}`, '#bfd0ff', 12);
   }
 
   private flashEnemy(): void {

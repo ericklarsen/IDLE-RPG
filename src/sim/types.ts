@@ -671,6 +671,8 @@ export type SimEvent =
       advantage?: Advantage;
     }
   | { type: 'companionHit'; damage: number }
+  /** Splash onto the monsters behind the front one, never a kill of its own. */
+  | { type: 'splash'; damage: number }
   | { type: 'burn'; damage: number }
   | { type: 'kill'; name: string; kind: EnemyKind; gold: number; exp: number }
   | { type: 'levelup'; level: number }
