@@ -1,6 +1,6 @@
 import { ascendNodeById, shardReward } from '../data/ascension';
 import { BALANCE } from '../data/balance';
-import { CHARACTERS } from '../data/characters';
+import { CHARACTERS, characterById } from '../data/characters';
 import { BOOST_MAX, boostCost } from '../data/boost';
 import { PALETTES } from '../data/palettes';
 import {
@@ -3586,12 +3586,21 @@ export class BattleSim {
       : Math.min(this.hero.hp, stats.maxHp);
   }
 
-  private computeStats(includeSurge = true): HeroStats {
+  /**
+   * Stats for one party member. Gear and wardrobe are read from that character,
+   * while boost, Ascension, mounts, wings, and skills stay party-wide; the
+   * character's own multipliers are applied last.
+   */
+  private computeStats(
+    includeSurge = true,
+    member: CharacterId = activeCharacterId(this.party),
+  ): HeroStats {
+    const who = characterById(member) ?? CHARACTERS[0];
     const base = heroStats(this.level);
-    const gear = gearBonuses(this.equipped);
+    const gear = gearBonuses(this.gear[member]);
     const boost = boostBonuses(this.boosts);
     const passive = passiveBonuses(this.skills);
-    const outfit = costumeBonuses(this.costume);
+    const outfit = costumeBonuses(this.costumes[member]);
     const mount = mountBonuses(this.mounts);
     const wing = wingBonuses(this.wings);
     const resonance = refineResonance(this.refine);
@@ -3630,24 +3639,41 @@ export class BattleSim {
 
     return {
       ...base,
-      maxHp,
-      atk: Math.round(atk * 10) / 10,
+      maxHp: Math.round(maxHp * who.hp),
+      atk: Math.round(atk * who.atk * 10) / 10,
       def:
         Math.round(
-          (base.def + gear.def) * (1 + outfit.defPct + mount.defPct + wing.defPct) * 10,
+          (base.def + gear.def) * (1 + outfit.defPct + mount.defPct + wing.defPct) * who.def * 10,
         ) / 10,
       atkSpeed:
         Math.round(
           base.atkSpeed *
             (1 + gear.speed + boost.speedPct + passive.speedPct + outfit.speedPct) *
             surgeSpeed *
+            who.atkSpeed *
             1000,
         ) / 1000,
       crit: Math.min(
         BALANCE.heroCritCap,
-        base.crit + gear.crit + outfit.crit + resonance.crit,
+        base.crit + gear.crit + outfit.crit + resonance.crit + who.crit,
       ),
     };
+  }
+
+  /**
+   * Makes another party member the one the simulation fights with. The stat
+   * block is rebuilt from that member's own gear and wardrobe, so swapping is
+   * a real change and not a skin.
+   */
+  setActiveCharacter(slot: number): boolean {
+    if (!Number.isInteger(slot) || slot < 0 || slot >= this.party.slots.length) return false;
+    if (!this.party.slots[slot]) return false;
+    if (slot === this.party.activeSlot) return true;
+
+    this.party = { ...this.party, activeSlot: slot };
+    const stats = this.computeStats(false);
+    this.hero = { ...stats, hp: Math.min(Math.max(1, this.hero.hp), stats.maxHp) };
+    return true;
   }
 
   private isValidItem(item: Item): boolean {

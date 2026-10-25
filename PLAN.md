@@ -850,7 +850,7 @@ Multiplier dikalikan ke stat turunan gear karakter itu sendiri. Tidak ada karakt
 
 1. **Fondasi (selesai):** data roster + `PartyState` + normalisasi/unlock/resonance, 12 test. Belum tersambung ke tarung.
 2. **Save v24 + party di state (selesai):** `party`/`gear`/`costumes` disimpan, save v23 ke bawah memindahkan satu set ke knight, milestone unlock dihitung ulang saat load, 5 test migrasi di `src/sim/partySave.test.ts`. Getter `equipped`/`costume` tetap menunjuk karakter aktif, jadi seluruh jalur upgrade belum perlu berubah.
-3. **Combat party:** loop kombatan, target, wave bertingkat, signature skill; `battle.test.ts` dan `pacing.test.ts` disesuaikan dan diukur ulang.
+3. **Combat party:** dipecah dua. **3a (selesai):** `computeStats` menerima karakter, jadi gear/wardrobe tiap anggota dipakai sendiri dan `setActiveCharacter(slot)` mengganti anggota yang bertarung; knight sengaja dibuat multiplier 1.0 supaya seluruh angka balance, pacing, dan test lama tetap sah. **3b (berikutnya):** loop kombatan (5 anggota menyerang bersamaan), musuh per wave mengikuti jumlah anggota (HP/ATK dibagi rata supaya time-to-kill tidak berubah), mati-per-anggota, dan signature skill per karakter.
 4. **UI:** halaman PARTY, GEAR per karakter, wardrobe per karakter, HUD 5 bar.
 5. **Scene & balance:** layout 5 hero, wave 2–6 monster, ekonomi ×2.5, kalibrasi ulang surge/pacing.
 

@@ -40,10 +40,12 @@ export const CHARACTERS: CharacterInfo[] = [
     role: 'tank',
     element: 'holy',
     color: '#16295c',
-    hp: 1.15,
-    atk: 0.9,
-    def: 1.3,
-    atkSpeed: 0.95,
+    // The knight is the neutral baseline: every existing balance number,
+    // pacing range, and test was measured with these stats.
+    hp: 1,
+    atk: 1,
+    def: 1,
+    atkSpeed: 1,
     crit: 0,
     unlockStage: 1,
     skill: {
@@ -57,7 +59,7 @@ export const CHARACTERS: CharacterInfo[] = [
       desc: 'Shield the party for 18% max HP',
       color: '#16295c',
     },
-    passive: '+15% HP, +30% DEF, −10% ATK',
+    passive: 'Baseline stats; soaks damage from the front slot',
     desc: 'Runs in front and takes the hits the rest of the party cannot.',
   },
   {
