@@ -569,6 +569,69 @@ body {
   );
 }
 
+/* Party health strip: only rendered once a second member joins the party. */
+.party-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(56px, 1fr));
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.party-pip {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.party-pip-name {
+  overflow: hidden;
+  font-family: var(--display);
+  font-size: 9px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.party-pip.active .party-pip-name {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.party-pip .track.pip {
+  height: 7px;
+  border-width: 2px;
+}
+
+.party-pip .track.pip > span {
+  background-image: repeating-linear-gradient(
+    135deg,
+    rgba(255, 253, 247, 0.28) 0 2px,
+    transparent 2px 5px
+  );
+}
+
+.party-pip-hp {
+  font-size: 8px;
+  font-weight: 700;
+  color: var(--muted);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.party-pip.down {
+  opacity: 0.55;
+}
+
+.party-pip.down .track.pip > span {
+  background-color: var(--muted);
+}
+
+.party-pip.down .party-pip-hp {
+  color: var(--red);
+  letter-spacing: 0.06em;
+}
+
 .surge-row {
   display: flex;
   align-items: center;

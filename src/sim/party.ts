@@ -129,6 +129,9 @@ export interface PartyView {
   members: {
     id: CharacterId;
     name: string;
+    /** Ink colour of the roster chip, so the HUD strip matches the PARTY screen. */
+    color: string;
+    element: Element;
     hp: number;
     maxHp: number;
     active: boolean;

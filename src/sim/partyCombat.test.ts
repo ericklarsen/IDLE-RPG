@@ -85,6 +85,31 @@ describe('party combat', () => {
     expect(solo.enemy.hp).toBeLessThan(solo.enemy.maxHp);
   });
 
+  it('feeds the battle HUD a live roster with roster colours', () => {
+    const sim = partySim('knight', 'ranger');
+    const snapshot = sim.snapshot();
+
+    expect(snapshot.party.members.map((member) => member.name)).toEqual(['Warden', 'Ranger']);
+    expect(snapshot.party.members[1]).toMatchObject({
+      color: '#a8720f',
+      element: 'lightning',
+      active: false,
+      down: false,
+    });
+    // Rounding differs by a rounding mode, never by more than one point.
+    expect(Math.abs(snapshot.party.members[0].hp - snapshot.heroHp)).toBeLessThanOrEqual(1);
+
+    run(sim, 6);
+    const after = sim.snapshot();
+    expect(Math.abs(after.party.members[0].hp - after.heroHp)).toBeLessThanOrEqual(1);
+    expect(after.party.members[1].hp).toBe(Math.max(0, Math.round(sim.mates[0].hp)));
+  });
+
+  it('keeps a solo party to a single HUD pip', () => {
+    const solo = new BattleSim(makeSave());
+    expect(solo.snapshot().party.members).toHaveLength(1);
+  });
+
   it('reports the roster for the PARTY screen', () => {
     const sim = partySim('knight', 'ranger');
     const view = sim.partyView();

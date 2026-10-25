@@ -798,13 +798,15 @@ Keputusan pemilik produk: **party 5 slot sekaligus**, **gear per karakter**, dan
 
 | id | Nama | Role | Elemen | Unlock | HP | ATK | DEF | SPD | Crit | Signature |
 |---|---|---|---|---|---|---|---|---|---|---|
-| knight | Warden | tank | holy | stage 1 | 1.15 | 0.90 | 1.30 | 0.95 | 0 | Aegis Oath — shield party 18%, 14 s |
+| knight | Warden | tank | holy | stage 1 | 1.00 | 1.00 | 1.00 | 1.00 | 0 | Aegis Oath — shield party 18%, 14 s |
 | ranger | Ranger | ranged | lightning | 10 | 0.90 | 1.10 | 0.90 | 1.15 | +4% | Storm Volley — 170% ATK, 6 s |
 | cleric | Cleric | support | holy | 20 | 1.00 | 0.75 | 1.05 | 1.00 | 0 | Mending Light — heal party 16%, 12 s |
 | mage | Mage | caster | fire | 35 | 0.85 | 1.30 | 0.85 | 0.90 | +2% | Inferno — 240% ATK, 9 s |
 | rogue | Rogue | striker | dark | 50 | 0.85 | 1.20 | 0.85 | 1.05 | +6% | Nightfall — 190% ATK drain 30%, 8 s |
 
 Multiplier dikalikan ke stat turunan gear karakter itu sendiri. Tidak ada karakter yang unggul di semua sumbu: tank menukar damage dengan HP/DEF, mage sebaliknya, cleric satu-satunya sumber heal party.
+
+**Knight sengaja 1.00 di semua sumbu**, bukan tabel awal 1.15/0.90/1.30/0.95: seluruh angka balance, rentang `pacing.test.ts`, dan 400+ test lama diukur dengan baseline itu. Identitas tank-nya datang dari **Aegis Oath** dan baris depan, bukan dari multiplier, sehingga roster bisa ditambah tanpa menggeser kurva yang sudah dikalibrasi secara diam-diam.
 
 ### 15.2 Aturan tarung
 
@@ -851,7 +853,7 @@ Multiplier dikalikan ke stat turunan gear karakter itu sendiri. Tidak ada karakt
 1. **Fondasi (selesai):** data roster + `PartyState` + normalisasi/unlock/resonance, 12 test. Belum tersambung ke tarung.
 2. **Save v24 + party di state (selesai):** `party`/`gear`/`costumes` disimpan, save v23 ke bawah memindahkan satu set ke knight, milestone unlock dihitung ulang saat load, 5 test migrasi di `src/sim/partySave.test.ts`. Getter `equipped`/`costume` tetap menunjuk karakter aktif, jadi seluruh jalur upgrade belum perlu berubah.
 3. **Combat party:** dipecah dua. **3a (selesai):** `computeStats` menerima karakter, jadi gear/wardrobe tiap anggota dipakai sendiri dan `setActiveCharacter(slot)` mengganti anggota yang bertarung; knight sengaja dibuat multiplier 1.0 supaya seluruh angka balance, pacing, dan test lama tetap sah. **3b (selesai):** `refreshParty()` membangun `mates` dari slot party, tiap anggota menyerang dengan cooldown dan stat sendiri (gear/wardrobe miliknya), 40% serangan musuh jatuh ke anggota lain, anggota yang HP-nya habis `down` sampai target berikutnya mati, dan surge hanya terisi setengah dari damage mate supaya uptime tidak rusak. **3c (berikutnya):** jumlah musuh per wave mengikuti ukuran party dengan HP/ATK dibagi rata (supaya time-to-kill tidak melonjak dan pacing bisa dikunci lagi), signature skill per karakter, lalu kalibrasi `pacing.test.ts` untuk party penuh.
-4. **UI:** halaman PARTY, GEAR per karakter, wardrobe per karakter, HUD 5 bar.
-5. **Scene & balance:** layout 5 hero, wave 2–6 monster, ekonomi ×2.5, kalibrasi ulang surge/pacing.
+4. **UI:** **PARTY (selesai):** 5 kartu slot, roster dengan unlock/skill/passive, tombol ADD/LEAD/REMOVE, dan `npm run smoke:party`. **HUD party (selesai):** `snapshot().party` membawa roster hidup (nama, warna, elemen, HP, `down`), strip bar tipis muncul di bawah bar hero **hanya kalau party berisi ≥2 karakter**, dan baris `YOU` memakai nama karakter aktif. Party solo tetap memakai HUD satu hero yang lama, jadi smoke lama tetap sah. **Berikutnya:** pemilih karakter di GEAR dan wardrobe, lalu 5 bar penuh yang menggantikan bar hero tunggal.
+5. **Scene & balance:** layout 5 hero (butuh sprite per karakter — aset sekarang hanya knight + repaint palet), wave 2–6 monster, ekonomi ×2.5, kalibrasi ulang surge/pacing.
 
 Tiap langkah harus hijau di `npm test`, `npm run build`, dan `npm run check:bundle` sebelum lanjut.

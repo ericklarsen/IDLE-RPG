@@ -3034,6 +3034,7 @@ export class BattleSim {
       dps: this.dps,
       kills: this.kills,
       dead: this.deadTimer > 0,
+      party: this.partyView(),
       gearScore: this.gearScore,
       equipped: { ...this.equipped },
       inventory: [...this.inventory],
@@ -3169,10 +3170,13 @@ export class BattleSim {
   /** What the PARTY screen renders: slots, roster, and who is on their feet. */
   partyView(): PartyView {
     const active = activeCharacterId(this.party);
+    const info = (id: CharacterId) => characterById(id) ?? CHARACTERS[0];
     const members: PartyView['members'] = [
       {
         id: active,
-        name: characterById(active)?.name ?? active,
+        name: info(active).name,
+        color: info(active).color,
+        element: info(active).element,
         hp: Math.max(0, Math.round(this.hero.hp)),
         maxHp: this.hero.maxHp,
         active: true,
@@ -3180,7 +3184,9 @@ export class BattleSim {
       },
       ...this.mates.map((mate) => ({
         id: mate.id,
-        name: characterById(mate.id)?.name ?? mate.id,
+        name: info(mate.id).name,
+        color: info(mate.id).color,
+        element: info(mate.id).element,
         hp: Math.max(0, Math.round(mate.hp)),
         maxHp: mate.maxHp,
         active: false,

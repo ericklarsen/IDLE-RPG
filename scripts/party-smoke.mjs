@@ -33,6 +33,13 @@ console.log('roster cards:', await page.locator('.party-card').count());
 console.log('unlocked:', await page.locator('.party-card:not(.locked)').count());
 console.log('slots before:', (await page.locator('.party-slots').innerText()).replaceAll('\n', ' | '));
 
+// A solo run must keep the old single-hero HUD.
+await openSection(page, 'BATTLE');
+await page.waitForTimeout(400);
+console.log('hud strip while solo:', await page.locator('.party-strip').count());
+console.log('hud hero name while solo:', await page.locator('.combat-line.hero .combat-name').innerText());
+await openSection(page, 'PARTY');
+
 await page.locator('.party-card', { hasText: 'Ranger' }).getByRole('button', { name: 'ADD' }).click();
 await page.waitForTimeout(400);
 console.log('slot 2:', (await page.locator('.party-slot').nth(1).innerText()).replaceAll('\n', ' | '));
@@ -40,6 +47,22 @@ console.log('slot 2:', (await page.locator('.party-slot').nth(1).innerText()).re
 await page.locator('.party-slot').nth(1).getByRole('button', { name: 'LEAD' }).click();
 await page.waitForTimeout(400);
 console.log('leader slot class:', await page.locator('.party-slot.leader').getAttribute('class'));
+
+await openSection(page, 'BATTLE');
+await page.waitForTimeout(800);
+console.log('hud strip pips:', await page.locator('.party-pip').count());
+console.log('hud strip:', (await page.locator('.party-strip').innerText()).replaceAll('\n', ' | '));
+console.log('hud hero name:', await page.locator('.combat-line.hero .combat-name').innerText());
+console.log('hud hero hp:', await page.locator('.combat-line.hero .combat-numbers').innerText());
+console.log('hud dead veil:', await page.locator('.dead-veil').count());
+console.log(
+  'hud strip overflow:',
+  await page.locator('.party-strip').evaluate((strip) => {
+    const rect = strip.getBoundingClientRect();
+    return Math.round(Math.max(0, -rect.left, rect.right - window.innerWidth));
+  }),
+);
+await openSection(page, 'PARTY');
 console.log('save party:', await page.evaluate(() => {
   const raw = localStorage.getItem('idle-forge-save-v1');
   const data = raw ? JSON.parse(raw) : null;
@@ -51,9 +74,20 @@ await page.waitForTimeout(1500);
 await openSection(page, 'PARTY');
 console.log('after reload slot 2:', (await page.locator('.party-slot').nth(1).innerText()).replaceAll('\n', ' | '));
 
+// The strip comes back from the save, not just from the click that made it.
+await openSection(page, 'BATTLE');
+await page.waitForTimeout(600);
+console.log('after reload hero name:', await page.locator('.combat-line.hero .combat-name').innerText());
+console.log('after reload pips:', await page.locator('.party-pip').count());
+await openSection(page, 'PARTY');
+
 await page.locator('.party-slot').nth(1).getByRole('button', { name: 'REMOVE' }).click();
 await page.waitForTimeout(400);
 console.log('after remove slot 2:', (await page.locator('.party-slot').nth(1).innerText()).replaceAll('\n', ' | '));
+
+await openSection(page, 'BATTLE');
+await page.waitForTimeout(400);
+console.log('hud strip after remove:', await page.locator('.party-strip').count());
 
 console.log('errors:', errors.length ? errors : 'none');
 await browser.close();

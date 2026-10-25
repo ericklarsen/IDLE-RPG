@@ -1,3 +1,5 @@
+import type { PartyView } from './party';
+
 export type EnemyKind = 'normal' | 'elite' | 'boss';
 export type Element = 'fire' | 'ice' | 'lightning' | 'holy' | 'dark';
 export type SpriteKey = 'slime' | 'bat' | 'skeleton' | 'goblin' | 'wraith' | 'demon' | 'rival';
@@ -654,6 +656,8 @@ export interface HudSnapshot {
   dungeon: DungeonSnapshot;
   shop: ShopSnapshot;
   palette: PaletteState;
+  /** Live roster for the battle HUD: active member first, then the rest. */
+  party: PartyView;
 }
 
 export type SimEvent =

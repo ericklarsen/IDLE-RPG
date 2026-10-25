@@ -49,6 +49,7 @@ export default function App() {
     gold,
     costume,
     dead,
+    party,
     pushing,
     canPush,
     deathsHere,
@@ -80,6 +81,10 @@ export default function App() {
   const [forecast, setForecast] = useState<ForecastReport | null>(null);
   const [onboarding, setOnboarding] = useState(() => !isOnboarded() && !hasSave());
   const lowHp = heroMaxHp > 0 && heroHp / heroMaxHp <= 0.3 && !dead;
+  // The strip only appears once a second character is actually in the party:
+  // a solo run keeps exactly the HUD it had before.
+  const roster = party.members.length > 1 ? party.members : null;
+  const leader = party.members[0];
   const outfit = costumeById(costume.equipped);
   const outfitTier = outfit ? COSTUME_TIERS[outfit.tier] : null;
   const runningTier = dungeon.tiers.find((tier) => tier.id === dungeon.tier) ?? null;
@@ -329,7 +334,9 @@ export default function App() {
 
           <div className="combat-line hero">
             <span className="badge hero-badge">YOU</span>
-            <span className="combat-name">Knight</span>
+            <span className="combat-name" style={{ color: leader.color }}>
+              {leader.name}
+            </span>
             {shield > 0 && <span className="shield-chip">+{fmt(shield)}</span>}
             <span className="combat-numbers">
               {fmt(heroHp)} / {fmt(heroMaxHp)}
@@ -338,6 +345,35 @@ export default function App() {
           <div className="track hp hero">
             <span style={{ width: `${pct(heroHp, heroMaxHp)}%` }} />
           </div>
+
+          {roster && (
+            <div className="party-strip" aria-label="Party health">
+              {roster.map((member) => (
+                <div
+                  key={member.id}
+                  className={`party-pip${member.active ? ' active' : ''}${
+                    member.down ? ' down' : ''
+                  }`}
+                  title={`${member.name} · ${member.element}`}
+                >
+                  <span className="party-pip-name" style={{ color: member.color }}>
+                    {member.name}
+                  </span>
+                  <span className="track hp pip">
+                    <span
+                      style={{
+                        width: `${pct(member.hp, member.maxHp)}%`,
+                        background: member.down ? undefined : member.color,
+                      }}
+                    />
+                  </span>
+                  <span className="party-pip-hp">
+                    {member.down ? 'DOWN' : `${fmt(member.hp)}/${fmt(member.maxHp)}`}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
 
           {arena.duelActive ? (
             <div className="duel-row">
@@ -388,8 +424,7 @@ export default function App() {
             <div className="push-row">
               <div className="push-copy">
                 <span className="push-label">
-                  {pushing
-                    ? `PUSH · STAGE ${stage}`
+                  {pushing                        ? `PUSH · STAGE ${stage}`
                     : canPush
                       ? `FARM · STAGE ${stage}`
                       : `STAGE ${stage} · NEXT BOSS`}
