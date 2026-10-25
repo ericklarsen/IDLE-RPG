@@ -13,6 +13,10 @@ jobs:
     name: Test, typecheck, build
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    env:
+      # The smoke suites are not run here, so skip Playwright's ~400 MB browser
+      # download during `npm ci` and keep the job to a couple of minutes.
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
 
     steps:
       - uses: actions/checkout@v4
