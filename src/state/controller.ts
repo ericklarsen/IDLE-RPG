@@ -34,6 +34,8 @@ import type {
 } from '../sim/types';
 import { substatText } from '../sim/upgrade';
 import { clearSave, loadSave, writeSave } from './save';
+import { setPartySlot } from '../sim/party';
+import type { CharacterId } from '../sim/types';
 
 type Listener = (snapshot: HudSnapshot, log: string[]) => void;
 
@@ -133,6 +135,22 @@ class GameController {
       this.pushLog(`Clear stage ${ARENA_UNLOCK_STAGE} to unlock the arena.`);
     }
     if (result.ok) this.flushSave();
+    this.publish();
+  }
+
+  /** Puts a character into a party slot (or clears it) and rebuilds the roster. */
+  slotCharacter(slot: number, id: CharacterId | null): void {
+    const next = setPartySlot(this.sim.party, slot, id);
+    if (!next) return;
+    this.sim.party = next;
+    this.sim.refreshParty();
+    this.sim.setActiveCharacter(next.activeSlot);
+    this.publish();
+  }
+
+  /** Makes a filled slot the character the simulation actually fights with. */
+  setActiveSlot(slot: number): void {
+    if (!this.sim.setActiveCharacter(slot)) return;
     this.publish();
   }
 

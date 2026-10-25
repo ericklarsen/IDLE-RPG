@@ -84,4 +84,15 @@ describe('party combat', () => {
     expect(solo.hero.hp).toBeLessThanOrEqual(solo.hero.maxHp);
     expect(solo.enemy.hp).toBeLessThan(solo.enemy.maxHp);
   });
+
+  it('reports the roster for the PARTY screen', () => {
+    const sim = partySim('knight', 'ranger');
+    const view = sim.partyView();
+
+    expect(view.slots.slice(0, 2)).toEqual(['knight', 'ranger']);
+    expect(view.members.map((member) => member.id)).toEqual(['knight', 'ranger']);
+    expect(view.members[0]).toMatchObject({ active: true, down: false });
+    expect(view.members[1]).toMatchObject({ active: false, down: false });
+    expect(view.members[1].hp).toBe(view.members[1].maxHp);
+  });
 });

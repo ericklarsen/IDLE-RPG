@@ -154,7 +154,7 @@ import {
   trainPet,
 } from './pets';
 import { EVENT_GOAL, EVENT_SET, EVENT_UNLOCK_STAGE, normalizeEvent } from './event';
-import { activeCharacterId, emptyParty, normalizeParty } from './party';
+import { activeCharacterId, emptyParty, normalizeParty, type PartyView } from './party';
 import {
   addMount,
   activeMountInfo,
@@ -3163,6 +3163,36 @@ export class BattleSim {
           { ...this.costumes[entry.id], owned: [...this.costumes[entry.id].owned] },
         ]),
       ) as Record<CharacterId, CostumeState>,
+    };
+  }
+
+  /** What the PARTY screen renders: slots, roster, and who is on their feet. */
+  partyView(): PartyView {
+    const active = activeCharacterId(this.party);
+    const members: PartyView['members'] = [
+      {
+        id: active,
+        name: characterById(active)?.name ?? active,
+        hp: Math.max(0, Math.round(this.hero.hp)),
+        maxHp: this.hero.maxHp,
+        active: true,
+        down: this.deadTimer > 0,
+      },
+      ...this.mates.map((mate) => ({
+        id: mate.id,
+        name: characterById(mate.id)?.name ?? mate.id,
+        hp: Math.max(0, Math.round(mate.hp)),
+        maxHp: mate.maxHp,
+        active: false,
+        down: mate.down,
+      })),
+    ];
+
+    return {
+      slots: [...this.party.slots],
+      unlocked: [...this.party.unlocked],
+      activeSlot: this.party.activeSlot,
+      members,
     };
   }
 

@@ -121,6 +121,21 @@ export function partyMembers(party: PartyState): CharacterId[] {
   return party.slots.filter((id): id is CharacterId => Boolean(id));
 }
 
+/** What the PARTY screen renders; built from the live sim, not from the save. */
+export interface PartyView {
+  slots: (CharacterId | null)[];
+  unlocked: CharacterId[];
+  activeSlot: number;
+  members: {
+    id: CharacterId;
+    name: string;
+    hp: number;
+    maxHp: number;
+    active: boolean;
+    down: boolean;
+  }[];
+}
+
 /** Element resonance: two matching members give the party +6% ATK. */
 export function partyResonance(party: PartyState): PartyResonance | null {
   const counts = new Map<Element, number>();
