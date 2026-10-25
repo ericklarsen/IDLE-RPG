@@ -25,6 +25,18 @@ export const BALANCE = {
   // one's HP and ATK is divided by √count, so the wave grows, not the numbers.
   enemyPackCap: 5,
 
+  // Item drop chance per kill, by enemy kind. Offline reads these too, so the
+  // expedition report and the live run agree on what an hour is worth.
+  dropNormal: 0.16,
+  dropElite: 0.45,
+  dropBoss: 1,
+  // Gear is per character now, so five characters chase five six-slot sets.
+  // Drops scale with the roster instead of raising the base rate: a solo run
+  // keeps exactly the numbers every pacing run and balance test was measured
+  // on, while a full party gets 2.5x the items per kill. Measured with
+  // scripts/pacing.ts (solo arc unchanged) and counted through kill events.
+  dropPartyStep: 0.375,
+
   // Rewards track enemy HP so later stages stay worth farming.
   goldBase: 5,
   goldPerHp: 0.015,

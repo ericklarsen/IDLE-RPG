@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { BALANCE } from '../data/balance';
 import { BattleSim } from './battle';
-import { enemyStats, rewardFor } from './formulas';
+import { enemyStats, partyDropMult, rewardFor } from './formulas';
 import { setPartySlot } from './party';
 import type { CharacterId, Enemy, SaveData } from './types';
 
@@ -142,6 +142,31 @@ describe('packed waves', () => {
     expect(sim.gold - before).toBe(Math.ceil(reward.gold * share));
     // Five kills at the shared rate stay within a small multiple of one fight.
     expect(sim.gold - before).toBeLessThan(reward.gold);
+  });
+
+  it('raises item drops with the roster and leaves a solo run untouched', () => {
+    expect(partyDropMult(1)).toBe(1);
+    expect(partyDropMult(3)).toBeCloseTo(1.75);
+    expect(partyDropMult(5)).toBeCloseTo(2.5);
+    // A roster bigger than the wave caps where the wave does.
+    expect(partyDropMult(9)).toBe(partyDropMult(5));
+
+    type Dropper = {
+      rng: () => number;
+      maybeDropLoot: (kind: 'normal' | 'elite' | 'boss', split?: number) => void;
+    };
+    // Same roll and same kind: only the party clears the drop bar, so five
+    // sets can be chased in the hours a solo set used to take.
+    const drops = (sim: BattleSim): number => {
+      const inner = sim as unknown as Dropper;
+      inner.rng = () => 0.3;
+      const before = sim.inventory.length;
+      inner.maybeDropLoot('normal', 1);
+      return sim.inventory.length - before;
+    };
+
+    expect(drops(packSim(1))).toBe(0);
+    expect(drops(packSim(5))).toBe(1);
   });
 
   it('lets every monster in the wave swing, so the pack hits √count harder', () => {

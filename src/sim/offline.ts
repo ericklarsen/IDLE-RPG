@@ -1,7 +1,13 @@
 import { BALANCE } from '../data/balance';
 import { elementMultiplier } from '../data/elements';
 import { skillById, skillScale } from '../data/skills';
-import { enemyKindForWave, enemyStats, levelUpCost, rewardFor } from './formulas';
+import {
+  dropChanceFor,
+  enemyKindForWave,
+  enemyStats,
+  levelUpCost,
+  rewardFor,
+} from './formulas';
 import type { Element, Item, SkillLoadout } from './types';
 
 export interface OfflineReport {
@@ -56,8 +62,7 @@ export function stageRates(stage: number): StageRates {
     rates.def += stats.def * share;
     rates.gold += reward.gold * share;
     rates.exp += reward.exp * share;
-    rates.dropRate +=
-      (kind === 'boss' ? 1 : kind === 'elite' ? 0.45 : 0.16) * share;
+    rates.dropRate += dropChanceFor(kind) * share;
 
     if (kind === 'elite') rates.essence += BALANCE.eliteEssence * share;
     if (kind === 'boss') {

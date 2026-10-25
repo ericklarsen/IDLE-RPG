@@ -58,6 +58,27 @@ export function enemyStats(stage: number, wave: number): EnemyStats {
   };
 }
 
+/**
+ * Chance that a kill leaves an item. One place for the number, because the
+ * live run and the offline expedition must agree on what an hour is worth.
+ */
+export function dropChanceFor(kind: EnemyKind): number {
+  if (kind === 'boss') return BALANCE.dropBoss;
+  if (kind === 'elite') return BALANCE.dropElite;
+  return BALANCE.dropNormal;
+}
+
+/**
+ * Item drop multiplier for a roster of `partySize` fighters. Gear is per
+ * character, so a party of five is chasing five sets; solo is the multiplier
+ * of one and therefore exactly the economy every balance number was measured
+ * against. Capped at the wave size so a larger roster cannot inflate it.
+ */
+export function partyDropMult(partySize: number): number {
+  const count = Math.max(1, Math.min(BALANCE.enemyPackCap, Math.floor(partySize)));
+  return 1 + BALANCE.dropPartyStep * (count - 1);
+}
+
 export interface Reward {
   gold: number;
   exp: number;

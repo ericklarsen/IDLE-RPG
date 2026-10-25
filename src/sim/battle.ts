@@ -107,11 +107,13 @@ import {
 } from '../data/items';
 import {
   damageRoll,
+  dropChanceFor,
   enemyKindForWave,
   enemyStats,
   globalWave,
   heroStats,
   levelUpCost,
+  partyDropMult,
   rewardFor,
   type HeroStats,
 } from './formulas';
@@ -3595,8 +3597,9 @@ export class BattleSim {
   }
 
   private maybeDropLoot(kind: EnemyKind, split = 1): void {
-    const base = kind === 'boss' ? 1 : kind === 'elite' ? 0.45 : 0.16;
-    // Split across the wave so a five-monster pack does not flood the bag.
+    // Five characters chase five sets, so the party lifts the base rate; the
+    // wave split below then keeps a five-monster pack from flooding the bag.
+    const base = dropChanceFor(kind) * partyDropMult(this.mates.length + 1);
     const chance = Math.min(1, (base + this.ascendBonuses.dropChance) / Math.max(1, split));
     if (this.rng() > chance) return;
 
