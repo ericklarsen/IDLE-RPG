@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MATE_LIMIT, mateSpots } from './layout';
+import { enemySpots, MATE_LIMIT, mateSpots, PACK_LIMIT } from './layout';
 
 describe('arena party layout', () => {
   it('puts nobody on the field for a solo party', () => {
@@ -33,5 +33,41 @@ describe('arena party layout', () => {
     expect(MATE_LIMIT).toBe(4);
     // Junk counts fall back to an empty field instead of throwing.
     expect(mateSpots(105, -2)).toEqual([]);
+  });
+});
+
+describe('arena enemy layout', () => {
+  it('draws nothing behind a lone monster', () => {
+    expect(enemySpots(290, 1)).toEqual([]);
+    expect(enemySpots(290, 0)).toEqual([]);
+  });
+
+  it('stacks the rest of the pack behind and above the front monster', () => {
+    const spots = enemySpots(290, 5);
+    expect(spots).toHaveLength(4);
+
+    // Nearest first: further right, higher up, and smaller than the last.
+    for (let i = 1; i < spots.length; i += 1) {
+      expect(spots[i].x).toBeGreaterThanOrEqual(spots[i - 1].x);
+      expect(spots[i].lift).toBeGreaterThan(spots[i - 1].lift);
+      expect(spots[i].scale).toBeLessThan(spots[i - 1].scale);
+    }
+    expect(spots[0].x).toBeGreaterThan(290);
+  });
+
+  it('keeps every monster body inside the 390 px arena', () => {
+    // The enemy enters from ENEMY_X + 110 and marches back to ENEMY_X.
+    for (const frontX of [290, 340, 400]) {
+      for (const spot of enemySpots(frontX, 5)) {
+        expect(spot.x).toBeLessThanOrEqual(390 - 24);
+        expect(spot.x).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  it('caps the pack at the four extra bodies it has sprites for', () => {
+    expect(enemySpots(290, 9)).toHaveLength(PACK_LIMIT);
+    expect(PACK_LIMIT).toBe(4);
+    expect(enemySpots(290, -3)).toEqual([]);
   });
 });

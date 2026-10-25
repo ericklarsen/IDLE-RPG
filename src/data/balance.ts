@@ -21,6 +21,9 @@ export const BALANCE = {
   enemyAtkSpeed: 0.7,
   eliteAtkSpeed: 0.8,
   bossAtkSpeed: 0.6,
+  // A normal wave fields one monster per party member, up to this many. Each
+  // one's HP and ATK is divided by √count, so the wave grows, not the numbers.
+  enemyPackCap: 5,
 
   // Rewards track enemy HP so later stages stay worth farming.
   goldBase: 5,

@@ -20,6 +20,40 @@ const MIN_X = 24;
 
 export const MATE_LIMIT = OFFSETS.length;
 
+export interface EnemySpot {
+  x: number;
+  /** Pixels above the ground line; further back reads as higher up. */
+  lift: number;
+  scale: number;
+}
+
+/** Offsets behind the front monster, nearest first. */
+const PACK_OFFSETS = [24, 44, 58, 70];
+const PACK_LIFTS = [8, 14, 19, 23];
+const PACK_SCALES = [0.92, 0.86, 0.8, 0.75];
+/** Bodies stay clear of the right edge at 390 px. */
+const MAX_ENEMY_X = 356;
+
+export const PACK_LIMIT = PACK_OFFSETS.length;
+
+/**
+ * Extra monsters in a wave stand behind the front one and to its right.
+ * They shrink with distance, which is all the depth a 390 px arena needs.
+ */
+export function enemySpots(frontX: number, count: number): EnemySpot[] {
+  const spots: EnemySpot[] = [];
+  const extras = Math.max(0, Math.min(Math.floor(count) - 1, PACK_LIMIT));
+
+  for (let i = 0; i < extras; i += 1) {
+    spots.push({
+      x: Math.min(MAX_ENEMY_X, frontX + PACK_OFFSETS[i]),
+      lift: PACK_LIFTS[i],
+      scale: PACK_SCALES[i],
+    });
+  }
+  return spots;
+}
+
 export function mateSpots(heroX: number, count: number): MateSpot[] {
   const spots: MateSpot[] = [];
   const total = Math.max(0, Math.min(Math.floor(count), MATE_LIMIT));

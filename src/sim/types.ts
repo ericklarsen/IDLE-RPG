@@ -614,6 +614,8 @@ export interface HudSnapshot {
   enemyName: string;
   enemyHp: number;
   enemyMaxHp: number;
+  /** Monsters left in the wave; 1 on a solo run, elites and bosses. */
+  enemyCount: number;
   heroHp: number;
   heroMaxHp: number;
   level: number;
@@ -696,7 +698,8 @@ export type SimEvent =
   | { type: 'death' }
   | { type: 'revive' }
   | { type: 'enhance'; level: number }
-  | { type: 'spawn'; enemy: Enemy }
+  /** `next` marks the next monster of the same wave stepping up, not a new wave. */
+  | { type: 'spawn'; enemy: Enemy; next?: boolean }
   | { type: 'loot'; item: Item; autoSalvaged: boolean }
   | { type: 'resource'; essence: number; cores: number; books: number }
   | {

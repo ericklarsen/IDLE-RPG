@@ -12,7 +12,7 @@ import { gameController } from '../../state/controller';
 import { isMotionReduced } from '../../state/motion';
 import type { Element, Enemy, SimEvent } from '../../sim/types';
 import { ensureHeroTexture, registerDummyTextures, SPRITE_SIZE } from '../dummy/assets';
-import { MATE_LIMIT, mateSpots } from '../layout';
+import { enemySpots, MATE_LIMIT, mateSpots, PACK_LIMIT } from '../layout';
 import { buzz } from '../haptics';
 
 const GROUND_Y = 370;
@@ -44,6 +44,12 @@ export class BattleScene extends Phaser.Scene {
   private enemyContainer!: Phaser.GameObjects.Container;
   private enemySprite!: Phaser.GameObjects.Image;
   private enemyShadow!: Phaser.GameObjects.Ellipse;
+  /** The rest of the wave, drawn behind and above the front monster. */
+  private packPool: {
+    id: number;
+    sprite: Phaser.GameObjects.Image;
+    shadow: Phaser.GameObjects.Ellipse;
+  }[] = [];
   private banner!: Phaser.GameObjects.Text;
   private streakText!: Phaser.GameObjects.Text;
   private redFlash!: Phaser.GameObjects.Rectangle;
@@ -229,6 +235,23 @@ export class BattleScene extends Phaser.Scene {
     this.enemyContainer = this.add
       .container(ENEMY_X, GROUND_Y, [this.enemySprite])
       .setDepth(9);
+
+    // A wave fields one monster per party member. The extras are pooled here
+    // and shown or hidden from the live pack, so no monster is ever recreated
+    // mid-fight.
+    for (let i = 0; i < PACK_LIMIT; i += 1) {
+      const shadow = this.add
+        .ellipse(ENEMY_X, GROUND_Y + 2, 46, 11, 0x000000, 0.26)
+        .setDepth(4)
+        .setVisible(false);
+      const sprite = this.add
+        .image(ENEMY_X, GROUND_Y, 'slime')
+        .setOrigin(0.5, 1)
+        .setScale(1.8)
+        .setDepth(8)
+        .setVisible(false);
+      this.packPool.push({ id: -1, sprite, shadow });
+    }
 
     this.burstEmitter = this.add
       .particles(0, 0, 'spark', {
@@ -426,6 +449,7 @@ export class BattleScene extends Phaser.Scene {
     this.enemyShadow.setX(this.enemyX);
 
     this.syncMates(knightX, walking);
+    this.syncPack(walking);
 
     this.dust.setPosition(knightX, GROUND_Y);
     this.dust.emitting = walking > 0.15;
@@ -476,6 +500,49 @@ export class BattleScene extends Phaser.Scene {
           mate.down ? 0 : walking * Math.sin(this.time.now / 90 + i * 1.3) * 0.05,
         );
       entry.shadow.setVisible(true).setX(spot.x);
+    }
+  }
+
+  /**
+   * Draws the monsters behind the front one from the live pack. The front
+   * monster keeps its old sprite and every hit effect, so combat feedback does
+   * not change; this only shows how many are left in the wave.
+   */
+  private syncPack(walking: number): void {
+    const wave = gameController.sim.enemies;
+    const spots = enemySpots(this.enemyX, wave.length);
+    const reduce = isMotionReduced();
+
+    for (let i = 0; i < this.packPool.length; i += 1) {
+      const entry = this.packPool[i];
+      const enemy = wave[i + 1];
+      const spot = spots[i];
+
+      if (!enemy || !spot) {
+        if (entry.id !== -1) {
+          entry.id = -1;
+          entry.sprite.setVisible(false);
+          entry.shadow.setVisible(false);
+        }
+        continue;
+      }
+
+      if (entry.id !== enemy.id) {
+        entry.id = enemy.id;
+        entry.sprite.setTexture(enemy.sprite).clearTint();
+      }
+
+      const bob = reduce ? 0 : Math.sin(this.time.now / 280 + i) * 1.5;
+      const y = GROUND_Y - spot.lift + bob;
+      entry.sprite
+        .setVisible(true)
+        .setPosition(spot.x, y)
+        .setScale(2 * spot.scale)
+        .setRotation(reduce ? 0 : walking * Math.sin(this.time.now / 110 + i) * 0.03);
+      entry.shadow
+        .setVisible(true)
+        .setPosition(spot.x, GROUND_Y - spot.lift + 2)
+        .setSize(46 * spot.scale, 11 * spot.scale);
     }
   }
 
@@ -985,7 +1052,9 @@ export class BattleScene extends Phaser.Scene {
         this.walkTimer = Math.max(this.walkTimer, 1.1);
         break;
       case 'spawn': {
-        this.enemyOffset = isMotionReduced() ? 0 : ENEMY_ENTER;
+        // Only a fresh wave walks in; the next monster of the same pack steps
+        // forward in place, so the rest of the row does not slide back out.
+        if (!event.next) this.enemyOffset = isMotionReduced() ? 0 : ENEMY_ENTER;
         const token = ++this.spawnToken;
         this.time.delayedCall(150, () => {
           if (this.spawnToken === token) this.syncEnemy(event.enemy);

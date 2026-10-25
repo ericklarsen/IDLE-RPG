@@ -528,6 +528,18 @@ body {
   color: var(--navy);
 }
 
+/* Monsters left in the wave; hidden on a solo fight, elites and bosses. */
+.pack-chip {
+  padding: 0 4px 1px;
+  border: 2px solid var(--navy);
+  border-radius: 2px;
+  background: var(--paper-2);
+  font-family: var(--display);
+  font-size: 9.5px;
+  letter-spacing: 0.04em;
+  color: var(--navy);
+}
+
 .combat-numbers {
   margin-left: auto;
   font-size: 10.5px;

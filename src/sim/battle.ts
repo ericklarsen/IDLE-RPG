@@ -154,7 +154,13 @@ import {
   trainPet,
 } from './pets';
 import { EVENT_GOAL, EVENT_SET, EVENT_UNLOCK_STAGE, normalizeEvent } from './event';
-import { activeCharacterId, emptyParty, normalizeParty, type PartyView } from './party';
+import {
+  activeCharacterId,
+  emptyParty,
+  normalizeParty,
+  partyMembers,
+  type PartyView,
+} from './party';
 import {
   addMount,
   activeMountInfo,
@@ -403,7 +409,16 @@ function trialRng(): () => number {
 
 export class BattleSim {
   hero: Hero;
-  enemy: Enemy;
+  /** The monster in front; always the first entry of `pack`. */
+  enemy!: Enemy;
+  /**
+   * Everything still standing in the current wave, front first. A solo party
+   * faces one monster, exactly as before; every extra member adds one, so the
+   * content grows with the party instead of staying a single-target fight.
+   */
+  private pack: Enemy[] = [];
+  /** Monsters the wave spawned, so each kill pays its share of the reward. */
+  private packSize = 1;
   stage: number;
   wave: number;
   level: number;
@@ -474,6 +489,16 @@ export class BattleSim {
 
   set costume(next: CostumeState) {
     this.costumes[activeCharacterId(this.party)] = next;
+  }
+
+  /** The living wave for the arena; never mutated by readers. */
+  get enemies(): Enemy[] {
+    return this.pack;
+  }
+
+  /** How many monsters are left in the wave, for the HUD counter. */
+  get enemyCount(): number {
+    return this.pack.length;
   }
   deadTimer = 0;
   time = 0;
@@ -634,7 +659,7 @@ export class BattleSim {
     const stats = this.computeStats();
     this.hero = { ...stats, hp: stats.maxHp };
     this.refreshParty();
-    this.enemy = this.buildEnemy();
+    this.spawnPack();
     this.arena = normalizeArena(save?.arena) ?? emptyArena(dayKey());
     this.league = normalizeLeague(save?.league);
     this.trial = normalizeTrial(save?.trial);
@@ -1031,8 +1056,7 @@ export class BattleSim {
     this.deathsHere = 0;
     this.deadTimer = 0;
     this.hero.hp = this.hero.maxHp;
-    this.enemy = this.buildEnemy();
-    this.enemyCd = 1.1;
+    this.spawnPack();
     this.emit({ type: 'spawn', enemy: this.enemy });
     return true;
   }
@@ -1112,8 +1136,7 @@ export class BattleSim {
     this.costumeCd = 0;
     this.recomputeStats(false);
     this.hero.hp = this.hero.maxHp;
-    this.enemy = this.buildEnemy();
-    this.enemyCd = 1.2;
+    this.spawnPack(1.2);
     this.emit({ type: 'dungeonstart', tier: tier.id });
     this.emit({ type: 'spawn', enemy: this.enemy });
     return { ok: true };
@@ -1147,8 +1170,7 @@ export class BattleSim {
     this.burnBank = 0;
     this.recomputeStats(false);
     this.hero.hp = this.hero.maxHp;
-    this.enemy = this.buildEnemy();
-    this.enemyCd = 1.1;
+    this.spawnPack();
   }
 
   private finishDungeon(win: boolean): void {
@@ -1415,8 +1437,7 @@ export class BattleSim {
     this.costumeCd = 0;
     this.recomputeStats(false);
     this.hero.hp = this.hero.maxHp;
-    this.enemy = this.buildRivalEnemy(rival);
-    this.enemyCd = 1.2;
+    this.fieldSoloEnemy(this.buildRivalEnemy(rival), 1.2);
     this.emit({ type: 'duelstart', rival });
     this.emit({ type: 'spawn', enemy: this.enemy });
     return { ok: true };
@@ -1468,8 +1489,7 @@ export class BattleSim {
     this.burnBank = 0;
     this.recomputeStats(false);
     this.hero.hp = this.hero.maxHp;
-    this.enemy = this.buildEnemy();
-    this.enemyCd = 1.1;
+    this.spawnPack();
   }
 
   private finishDuel(win: boolean): void {
@@ -1592,8 +1612,7 @@ export class BattleSim {
     this.costumeCd = 0;
     this.recomputeStats(false);
     this.hero.hp = this.hero.maxHp;
-    this.enemy = this.buildTrialEnemy(info);
-    this.enemyCd = 1.2;
+    this.fieldSoloEnemy(this.buildTrialEnemy(info), 1.2);
     this.emit({ type: 'trialstart', floor, name: info.name, rules: info.rules });
     this.emit({ type: 'spawn', enemy: this.enemy });
     return { ok: true };
@@ -1644,8 +1663,7 @@ export class BattleSim {
     this.burnBank = 0;
     this.recomputeStats(false);
     this.hero.hp = this.hero.maxHp;
-    this.enemy = this.buildEnemy();
-    this.enemyCd = 1.1;
+    this.spawnPack();
   }
 
   private finishTrial(win: boolean): void {
@@ -1901,8 +1919,7 @@ export class BattleSim {
     this.enemySlowTimer = 0;
     this.recomputeStats(false);
     this.hero.hp = this.hero.maxHp;
-    this.enemy = this.buildEnemy();
-    this.enemyCd = 1.1;
+    this.spawnPack();
     for (const modifier of modifiers) this.learn('modifiers', modifier.id);
     this.emit({ type: 'riftstart', modifiers });
     this.emit({ type: 'spawn', enemy: this.enemy });
@@ -1944,8 +1961,7 @@ export class BattleSim {
     this.enemySlowTimer = 0;
     this.recomputeStats(false);
     this.hero.hp = this.hero.maxHp;
-    this.enemy = this.buildEnemy();
-    this.enemyCd = 1.1;
+    this.spawnPack();
   }
 
   private endRift(): void {
@@ -1982,8 +1998,7 @@ export class BattleSim {
     this.stage = this.farmStage + 1;
     this.wave = 1;
     this.deathsHere = 0;
-    this.enemy = this.buildEnemy();
-    this.enemyCd = 1.1;
+    this.spawnPack();
     this.emit({ type: 'push', stage: this.stage });
     this.emit({ type: 'spawn', enemy: this.enemy });
     return { ok: true, stage: this.stage };
@@ -2630,8 +2645,7 @@ export class BattleSim {
     this.surgeTimer = 0;
     this.hero = { ...this.computeStats(), hp: 0 };
     this.hero.hp = this.hero.maxHp;
-    this.enemyCd = 1.1;
-    this.enemy = this.buildEnemy();
+    this.spawnPack();
     this.syncPalettes();
 
     this.emit({ type: 'ascend', stage: this.stage, shards: reward });
@@ -3067,6 +3081,7 @@ export class BattleSim {
       enemyName: this.enemy.name,
       enemyHp: Math.max(0, Math.ceil(this.enemy.hp)),
       enemyMaxHp: this.enemy.maxHp,
+      enemyCount: this.pack.length,
       heroHp: Math.max(0, Math.ceil(this.hero.hp)),
       heroMaxHp: this.hero.maxHp,
       level: this.level,
@@ -3367,13 +3382,25 @@ export class BattleSim {
     this.emit({ type: 'wingSkill', name: info.skill.name, kind: 'shield', amount });
   }
 
+  /**
+   * Every monster still standing swings on the same beat. A solo party faces
+   * one, exactly as before; a full pack lands √count times a single hit.
+   */
   private enemyAttack(): void {
+    for (const enemy of [...this.pack]) {
+      if (enemy.hp <= 0) continue;
+      if (this.hero.hp <= 0 || this.deadTimer > 0) return;
+      this.enemyStrike(enemy);
+    }
+  }
+
+  private enemyStrike(enemy: Enemy): void {
     // Two in five swings land on whoever else is standing in front, so a
     // bigger party spreads the damage instead of leaving the leader to soak it.
     const standing = this.mates.filter((mate) => !mate.down);
     if (standing.length > 0 && this.rng() < 0.4) {
       const mate = standing[Math.floor(this.rng() * standing.length)];
-      const hit = damageRoll(this.enemy.atk, mate.def, 0, 1, this.rng);
+      const hit = damageRoll(enemy.atk, mate.def, 0, 1, this.rng);
       mate.hp -= hit.damage;
       this.emit({ type: 'hit', target: 'hero', damage: hit.damage, crit: false });
       if (mate.hp <= 0) {
@@ -3383,7 +3410,7 @@ export class BattleSim {
       return;
     }
 
-    const roll = damageRoll(this.enemy.atk, this.hero.def, 0, 1, this.rng);
+    const roll = damageRoll(enemy.atk, this.hero.def, 0, 1, this.rng);
     let incoming = roll.damage;
 
     if (this.shield > 0) {
@@ -3449,8 +3476,7 @@ export class BattleSim {
     this.stage = this.farmStage;
     this.wave = 1;
     this.deathsHere = 0;
-    this.enemy = this.buildEnemy();
-    this.enemyCd = 1.1;
+    this.spawnPack();
     this.emit({ type: 'retreat', stage: this.stage });
     this.emit({ type: 'spawn', enemy: this.enemy });
   }
@@ -3485,10 +3511,14 @@ export class BattleSim {
     this.burnDps = 0;
     this.burnBank = 0;
     const reward = rewardFor(this.stage, this.wave, kind);
+    // A wave can hold several monsters; each pays a share of the single-monster
+    // reward, so clearing five is not five times the gold of clearing one.
+    const share = 1 / Math.sqrt(this.packSize);
+    const exp = Math.round(reward.exp * share);
     const goldPct = boostBonuses(this.boosts).goldPct + this.ascendBonuses.goldPct;
-    const gold = Math.ceil(reward.gold * (1 + goldPct));
+    const gold = Math.ceil(reward.gold * share * (1 + goldPct));
     this.gold += gold;
-    this.exp += reward.exp;
+    this.exp += exp;
     this.kills += 1;
 
     let essence = 0;
@@ -3508,15 +3538,23 @@ export class BattleSim {
       this.event.bosses += 1;
     }
 
-    this.emit({ type: 'kill', name, kind, gold, exp: reward.exp });
+    this.emit({ type: 'kill', name, kind, gold, exp });
     if (essence > 0 || cores > 0 || books > 0) {
       this.emit({ type: 'resource', essence, cores, books });
     }
 
-    this.maybeDropLoot(kind);
+    this.maybeDropLoot(kind, this.packSize);
     this.maybeDropCostume(kind);
     this.maybeDropPetEgg(kind);
     this.gainExp();
+
+    // Monsters are still standing: the wave goes on with the next one in front.
+    this.pack.shift();
+    if (this.pack.length > 0) {
+      this.enemy = this.pack[0];
+      this.emit({ type: 'spawn', enemy: this.enemy, next: true });
+      return;
+    }
 
     if (kind === 'boss') {
       if (this.riftActive) {
@@ -3535,8 +3573,7 @@ export class BattleSim {
       this.wave = Math.min(BALANCE.wavePerStage, this.wave + 1);
     }
 
-    this.enemy = this.buildEnemy();
-    this.enemyCd = 1.1;
+    this.spawnPack();
     this.emit({ type: 'spawn', enemy: this.enemy });
   }
 
@@ -3549,8 +3586,7 @@ export class BattleSim {
     if (this.dungeonWave < DUNGEON_WAVES) {
       this.dungeonWave += 1;
       this.wave = this.dungeonWave;
-      this.enemy = this.buildEnemy();
-      this.enemyCd = 1.1;
+      this.spawnPack();
       this.emit({ type: 'spawn', enemy: this.enemy });
       return;
     }
@@ -3558,9 +3594,10 @@ export class BattleSim {
     this.finishDungeon(true);
   }
 
-  private maybeDropLoot(kind: EnemyKind): void {
+  private maybeDropLoot(kind: EnemyKind, split = 1): void {
     const base = kind === 'boss' ? 1 : kind === 'elite' ? 0.45 : 0.16;
-    const chance = Math.min(1, base + this.ascendBonuses.dropChance);
+    // Split across the wave so a five-monster pack does not flood the bag.
+    const chance = Math.min(1, (base + this.ascendBonuses.dropChance) / Math.max(1, split));
     if (this.rng() > chance) return;
 
     // During Emberfall, bosses drop the exclusive set instead of ordinary gear.
@@ -4022,6 +4059,49 @@ export class BattleSim {
       Number.isFinite(item.power) &&
       Number.isFinite(item.salvage)
     );
+  }
+
+  /**
+   * Builds the wave for the ladder: one monster per party member on a normal
+   * wave, a single one for elites, bosses and every side mode. HP and ATK are
+   * split by √count so a five-member party faces a wider fight, not five
+   * separate full-strength fights.
+   */
+  private buildPack(): Enemy[] {
+    const first = this.buildEnemy();
+    if (first.kind !== 'normal') return [first];
+    if (this.riftActive || this.duelActive || this.trialActive || this.dungeonActive) {
+      return [first];
+    }
+
+    const count = Math.min(BALANCE.enemyPackCap, partyMembers(this.party).length);
+    if (count <= 1) return [first];
+
+    const share = 1 / Math.sqrt(count);
+    const pack = [first];
+    for (let i = 1; i < count; i += 1) pack.push(this.buildEnemy());
+    for (const enemy of pack) {
+      enemy.maxHp = Math.max(1, Math.round(enemy.maxHp * share));
+      enemy.hp = enemy.maxHp;
+      enemy.atk = Math.max(1, Math.round(enemy.atk * share));
+    }
+    return pack;
+  }
+
+  /** Puts the wave on the field without announcing it; callers emit `spawn`. */
+  private spawnPack(delay = 1.1): void {
+    this.pack = this.buildPack();
+    this.packSize = this.pack.length;
+    this.enemy = this.pack[0];
+    this.enemyCd = delay;
+  }
+
+  /** A hand-built enemy (duel rival, trial boss) always fights alone. */
+  private fieldSoloEnemy(enemy: Enemy, delay: number): void {
+    this.pack = [enemy];
+    this.packSize = 1;
+    this.enemy = enemy;
+    this.enemyCd = delay;
   }
 
   private buildEnemy(): Enemy {

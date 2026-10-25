@@ -135,6 +135,9 @@ await openSection(page, 'BATTLE');
 await page.waitForTimeout(2000);
 console.log('full party pips:', await page.locator('.party-pip').count());
 console.log('full party hero:', await page.locator('.combat-line.hero .combat-name').innerText());
+// A five-member party faces a packed wave, so the HUD has to say how many are left.
+const packChip = page.locator('.pack-chip');
+console.log('pack chip:', (await packChip.count()) ? await packChip.innerText() : 'none');
 console.log('canvas:', await page.locator('canvas').count());
 console.log('errors:', errors.length ? errors : 'none');
 await browser.close();

@@ -40,6 +40,7 @@ export default function App() {
     enemyName,
     enemyHp,
     enemyMaxHp,
+    enemyCount,
     heroHp,
     heroMaxHp,
     enemyElement,
@@ -321,6 +322,7 @@ export default function App() {
               {arena.duelActive ? 'RIVAL' : kind}
             </span>
             <span className="combat-name">{enemyName}</span>
+            {enemyCount > 1 && <span className="pack-chip">×{enemyCount}</span>}
             <span className="elem-tag" style={{ color: ELEMENT_COLOR[enemyElement] }}>
               {ELEMENT_SHORT[enemyElement]}
             </span>
