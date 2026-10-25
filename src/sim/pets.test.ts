@@ -281,7 +281,7 @@ describe('pet kennel', () => {
     );
 
     const data = sim.saveData();
-    expect(data.version).toBe(23);
+    expect(data.version).toBe(24);
     expect(data.pets).toMatchObject({ active: 'frost' });
     expect(data.pets?.kinds?.ember).toEqual({ level: 6, maxLevel: 12, eggs: 1 });
 

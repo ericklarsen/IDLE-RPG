@@ -150,7 +150,7 @@ describe('equipment', () => {
     const data = sim.saveData();
     const restored = new BattleSim(data);
 
-    expect(data.version).toBe(23);
+    expect(data.version).toBe(24);
     expect(restored.equipped.weapon?.id).toBe('it_1');
     expect(restored.hero.atk).toBeCloseTo(sim.hero.atk, 5);
     expect(restored.gearScore).toBe(sim.gearScore);

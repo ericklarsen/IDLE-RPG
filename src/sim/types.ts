@@ -574,6 +574,12 @@ export interface SaveData {
   ascension?: Partial<AscensionState>;
   inventory?: Item[];
   equipped?: Partial<Equipped>;
+  /** v24: party slots and unlocks. */
+  party?: PartyState;
+  /** v24: gear per character; `equipped` stays as the knight's legacy copy. */
+  gear?: Partial<Record<CharacterId, Equipped>>;
+  /** v24: wardrobe per character; `costume` stays as the knight's copy. */
+  costumes?: Partial<Record<CharacterId, CostumeState>>;
   itemSeq?: number;
   lastSeen?: number;
 }

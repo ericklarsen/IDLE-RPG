@@ -548,7 +548,7 @@ describe('arena duel', () => {
     runUntil(sim, () => !sim.duelActive, 10);
 
     const save = sim.saveData();
-    expect(save.version).toBe(23);
+    expect(save.version).toBe(24);
     expect(save.arena?.points).toBe(24);
     expect(save.arena?.tickets).toBe(2);
     expect(save.league?.points).toBe(24);
@@ -798,7 +798,7 @@ describe('trial tower', () => {
     runUntil(sim, () => !sim.trialActive, 20);
 
     const save = sim.saveData();
-    expect(save.version).toBe(23);
+    expect(save.version).toBe(24);
     expect(save.trial).toMatchObject({ cleared: 1, attempts: 3 });
 
     const restored = new BattleSim(save, seeded(3));
@@ -883,7 +883,7 @@ describe('costume wardrobe', () => {
     const sim = new BattleSim(dressed(), seeded(9));
     const data = sim.saveData();
 
-    expect(data.version).toBe(23);
+    expect(data.version).toBe(24);
     expect(data.costume).toEqual({
       owned: ['ash-ronin'],
       equipped: 'ash-ronin',

@@ -1,5 +1,7 @@
 import { BALANCE } from '../data/balance';
+import { CHARACTERS } from '../data/characters';
 import { emptyEquipped, INVENTORY_CAP, RARITIES, SLOTS } from '../data/items';
+import { normalizeParty } from '../sim/party';
 import { normalizeArena } from '../sim/arena';
 import { normalizeAscension } from '../sim/ascension';
 import { normalizeBoosts } from '../sim/boost';
@@ -15,11 +17,20 @@ import { normalizeEvent } from '../sim/event';
 import { normalizeLeague } from '../sim/league';
 import { normalizeTrial } from '../sim/trial';
 import { normalizeSkills } from '../sim/skills';
-import type { Equipped, Item, Rarity, Rune, SaveData, Slot } from '../sim/types';
+import type {
+  CharacterId,
+  CostumeState,
+  Equipped,
+  Item,
+  Rarity,
+  Rune,
+  SaveData,
+  Slot,
+} from '../sim/types';
 import { normalizeItem } from '../sim/upgrade';
 
 const SAVE_KEY = 'idle-forge-save-v1';
-const SAVE_VERSION = 23;
+const SAVE_VERSION = 24;
 const SAVE_CODE_PREFIX = 'IF1-';
 
 function finite(value: unknown, fallback: number): number {
@@ -90,16 +101,37 @@ export function parseSave(raw: string): SaveData | null {
       })
       .slice(0, INVENTORY_CAP);
 
-    const equipped = sanitizeEquipped(parsed.equipped);
-    for (const slot of SLOTS) {
-      const item = equipped[slot];
-      if (!item) continue;
-      if (seen.has(item.id)) equipped[slot] = null;
-      else seen.add(item.id);
+    // v24 keeps one equipment set per character. Saves from before that carry
+    // a single set, which belongs to the knight; the rest start empty.
+    const gear = {} as Record<CharacterId, Equipped>;
+    for (const entry of CHARACTERS) {
+      const stored = parsed.gear ? sanitizeEquipped(parsed.gear[entry.id]) : null;
+      const legacy =
+        !parsed.gear && entry.id === 'knight' ? sanitizeEquipped(parsed.equipped) : null;
+      const equipped = stored ?? legacy ?? emptyEquipped();
+
+      for (const slot of SLOTS) {
+        const item = equipped[slot];
+        if (!item) continue;
+        if (seen.has(item.id)) equipped[slot] = null;
+        else seen.add(item.id);
+      }
+      gear[entry.id] = equipped;
+    }
+    // Top-level `equipped` stays as the knight's set for older readers.
+    const equipped = gear.knight;
+
+    const costumes = {} as Record<CharacterId, CostumeState>;
+    for (const entry of CHARACTERS) {
+      const legacy = entry.id === 'knight' ? parsed.costume : null;
+      costumes[entry.id] = normalizeCostume(parsed.costumes?.[entry.id] ?? legacy);
     }
 
     let maxSeq = Math.max(0, Math.floor(finite(parsed.itemSeq, 0)));
-    for (const item of [...inventory, ...SLOTS.map((slot) => equipped[slot])]) {
+    for (const item of [
+      ...inventory,
+      ...CHARACTERS.flatMap((entry) => SLOTS.map((slot) => gear[entry.id][slot])),
+    ]) {
       if (!item) continue;
       const match = /^it_(\d+)$/.exec(item.id);
       if (match) maxSeq = Math.max(maxSeq, Number(match[1]));
@@ -118,6 +150,8 @@ export function parseSave(raw: string): SaveData | null {
       }
     }
 
+    const maxStage = Math.max(1, Math.min(999, Math.floor(finite(parsed.maxStage, 1))));
+
     return {
       version: SAVE_VERSION,
       level: Math.max(1, Math.min(999, Math.floor(finite(parsed.level, 1)))),
@@ -130,7 +164,7 @@ export function parseSave(raw: string): SaveData | null {
       boosts: normalizeBoosts(parsed.boosts),
       skills: normalizeSkills(parsed.skills),
       ascension: normalizeAscension(parsed.ascension),
-      maxStage: Math.max(1, Math.min(999, Math.floor(finite(parsed.maxStage, 1)))),
+      maxStage,
       farmStage: Math.max(
         1,
         Math.min(
@@ -153,7 +187,10 @@ export function parseSave(raw: string): SaveData | null {
       arena: normalizeArena(parsed.arena) ?? undefined,
       league: normalizeLeague(parsed.league),
       trial: normalizeTrial(parsed.trial),
-      costume: normalizeCostume(parsed.costume),
+      costume: costumes.knight,
+      costumes,
+      gear,
+      party: normalizeParty(parsed.party, maxStage),
       event: normalizeEvent(parsed.event),
       codex: normalizeCodex(parsed.codex),
       palette: normalizePalette(parsed.palette),

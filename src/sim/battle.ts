@@ -1,5 +1,6 @@
 import { ascendNodeById, shardReward } from '../data/ascension';
 import { BALANCE } from '../data/balance';
+import { CHARACTERS } from '../data/characters';
 import { BOOST_MAX, boostCost } from '../data/boost';
 import { PALETTES } from '../data/palettes';
 import {
@@ -153,6 +154,7 @@ import {
   trainPet,
 } from './pets';
 import { EVENT_GOAL, EVENT_SET, EVENT_UNLOCK_STAGE, normalizeEvent } from './event';
+import { activeCharacterId, emptyParty, normalizeParty } from './party';
 import {
   addMount,
   activeMountInfo,
@@ -252,9 +254,11 @@ import type {
   Equipped,
   EventState,
   Hero,
+  CharacterId,
   HudSnapshot,
   Item,
   ItemSet,
+  PartyState,
   DungeonResult,
   DungeonSnapshot,
   DungeonState,
@@ -283,6 +287,19 @@ import type {
   TrialSnapshot,
   TrialState,
 } from './types';
+
+/** One equipment set per character, so a party never shares gear ids. */
+function characterGear(): Record<CharacterId, Equipped> {
+  const gear = {} as Record<CharacterId, Equipped>;
+  for (const entry of CHARACTERS) gear[entry.id] = emptyEquipped();
+  return gear;
+}
+
+function characterCostumes(): Record<CharacterId, CostumeState> {
+  const costumes = {} as Record<CharacterId, CostumeState>;
+  for (const entry of CHARACTERS) costumes[entry.id] = emptyCostume();
+  return costumes;
+}
 
 type Listener = (event: SimEvent) => void;
 
@@ -410,8 +427,27 @@ export class BattleSim {
   duelActive = false;
   trialActive = false;
   inventory: Item[] = [];
-  equipped: Equipped = emptyEquipped();
-  costume: CostumeState = emptyCostume();
+  /** Party order and unlocks; the getters below expose the active member. */
+  party: PartyState = emptyParty();
+  /** Save v24 keeps gear and wardrobe per character. */
+  gear: Record<CharacterId, Equipped> = characterGear();
+  costumes: Record<CharacterId, CostumeState> = characterCostumes();
+
+  get equipped(): Equipped {
+    return this.gear[activeCharacterId(this.party)];
+  }
+
+  set equipped(next: Equipped) {
+    this.gear[activeCharacterId(this.party)] = next;
+  }
+
+  get costume(): CostumeState {
+    return this.costumes[activeCharacterId(this.party)];
+  }
+
+  set costume(next: CostumeState) {
+    this.costumes[activeCharacterId(this.party)] = next;
+  }
   deadTimer = 0;
   time = 0;
 
@@ -508,23 +544,44 @@ export class BattleSim {
         .slice(0, INVENTORY_CAP)
         .map(normalizeItem);
     }
-    if (save?.equipped) {
+    // v24 stores gear and wardrobe per character. Older saves carry a single
+    // set, which belongs to the knight; the other characters start empty.
+    this.party = normalizeParty(save?.party, Math.max(1, save?.maxStage ?? 1));
+    this.gear = characterGear();
+    this.costumes = characterCostumes();
+
+    for (const entry of CHARACTERS) {
+      const slot = save?.gear?.[entry.id];
+      if (!slot) continue;
+      for (const kind of SLOTS) {
+        const item = slot[kind];
+        if (item && item.slot === kind && this.isValidItem(item)) {
+          this.gear[entry.id][kind] = normalizeItem(item);
+        }
+      }
+    }
+    if (!save?.gear && save?.equipped) {
       for (const slot of SLOTS) {
         const item = save.equipped[slot];
         if (item && item.slot === slot && this.isValidItem(item)) {
-          this.equipped[slot] = normalizeItem(item);
+          this.gear.knight[slot] = normalizeItem(item);
         }
       }
     }
 
-    if (!save) {
-      this.equipped.weapon = starterWeapon();
-      this.itemSeq = Math.max(this.itemSeq, 1);
+    for (const entry of CHARACTERS) {
+      const legacy = entry.id === 'knight' ? save?.costume : null;
+      this.costumes[entry.id] = normalizeCostume(save?.costumes?.[entry.id] ?? legacy);
+    }
+    // A worn wardrobe is already a discovery; older saves may lack the codex entry.
+    for (const entry of CHARACTERS) {
+      for (const id of this.costumes[entry.id].owned) this.learn('costumes', id);
     }
 
-    this.costume = normalizeCostume(save?.costume);
-    // A worn wardrobe is already a discovery; older saves may lack the codex entry.
-    for (const id of this.costume.owned) this.learn('costumes', id);
+    if (!save) {
+      this.gear.knight.weapon = starterWeapon();
+      this.itemSeq = Math.max(this.itemSeq, 1);
+    }
 
     // Refine levels live on the slot, so they survive gear swaps. Saves from
     // before v23 only carry a per-item roll count; migrate what is equipped.
@@ -2455,7 +2512,8 @@ export class BattleSim {
     this.dust = 0;
     this.kills = 0;
     this.inventory = [];
-    this.equipped = emptyEquipped();
+    // Ascension strips every character's gear, then re-arms the active member.
+    this.gear = characterGear();
     this.equipped.weapon = starterWeapon();
     this.itemSeq = 1;
     this.boosts = normalizeBoosts();
@@ -3001,7 +3059,7 @@ export class BattleSim {
 
   saveData(): SaveData {
     return {
-      version: 23,
+      version: 24,
       level: this.level,
       exp: this.exp,
       gold: this.gold,
@@ -3066,6 +3124,20 @@ export class BattleSim {
       inventory: [...this.inventory],
       equipped: { ...this.equipped },
       itemSeq: this.itemSeq,
+      party: {
+        slots: [...this.party.slots],
+        unlocked: [...this.party.unlocked],
+        activeSlot: this.party.activeSlot,
+      },
+      gear: Object.fromEntries(
+        CHARACTERS.map((entry) => [entry.id, { ...this.gear[entry.id] }]),
+      ) as Record<CharacterId, Equipped>,
+      costumes: Object.fromEntries(
+        CHARACTERS.map((entry) => [
+          entry.id,
+          { ...this.costumes[entry.id], owned: [...this.costumes[entry.id].owned] },
+        ]),
+      ) as Record<CharacterId, CostumeState>,
     };
   }
 

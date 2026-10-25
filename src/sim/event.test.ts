@@ -182,6 +182,6 @@ describe('Emberfall progression', () => {
 
     const restored = new BattleSim(sim.saveData(), seeded(2));
     expect(restored.event).toEqual({ key: '2026-10-23', bosses: 4, claimed: false });
-    expect(restored.saveData().version).toBe(23);
+    expect(restored.saveData().version).toBe(24);
   });
 });

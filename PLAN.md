@@ -849,7 +849,7 @@ Multiplier dikalikan ke stat turunan gear karakter itu sendiri. Tidak ada karakt
 ### 15.8 Urutan kerja & gate
 
 1. **Fondasi (selesai):** data roster + `PartyState` + normalisasi/unlock/resonance, 12 test. Belum tersambung ke tarung.
-2. **Save v24 + party di state:** simpan/muat party, migrasi gear & costume per karakter, test migrasi.
+2. **Save v24 + party di state (selesai):** `party`/`gear`/`costumes` disimpan, save v23 ke bawah memindahkan satu set ke knight, milestone unlock dihitung ulang saat load, 5 test migrasi di `src/sim/partySave.test.ts`. Getter `equipped`/`costume` tetap menunjuk karakter aktif, jadi seluruh jalur upgrade belum perlu berubah.
 3. **Combat party:** loop kombatan, target, wave bertingkat, signature skill; `battle.test.ts` dan `pacing.test.ts` disesuaikan dan diukur ulang.
 4. **UI:** halaman PARTY, GEAR per karakter, wardrobe per karakter, HUD 5 bar.
 5. **Scene & balance:** layout 5 hero, wave 2–6 monster, ekonomi ×2.5, kalibrasi ulang surge/pacing.

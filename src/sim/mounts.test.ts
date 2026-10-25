@@ -181,7 +181,7 @@ describe('mount di battle', () => {
     );
 
     const data = sim.saveData();
-    expect(data.version).toBe(23);
+    expect(data.version).toBe(24);
     expect(data.crystals).toBe(17);
     expect(data.mounts?.active).toBe('dusk-wolf');
     expect(data.mounts?.owned?.['dusk-wolf']).toEqual({ level: 3 });

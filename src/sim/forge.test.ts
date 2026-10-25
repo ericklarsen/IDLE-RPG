@@ -231,7 +231,7 @@ describe('forge', () => {
     sim.salvage('it_1');
 
     const data = sim.saveData();
-    expect(data.version).toBe(23);
+    expect(data.version).toBe(24);
     expect(data.dust).toBe(6);
   });
 });

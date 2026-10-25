@@ -297,7 +297,7 @@ describe('wing di battle', () => {
     );
 
     const data = sim.saveData();
-    expect(data.version).toBe(23);
+    expect(data.version).toBe(24);
     expect(data.wings?.active).toBe('rimepinions');
     expect(data.wings?.owned?.rimepinions).toEqual({ level: 4 });
 

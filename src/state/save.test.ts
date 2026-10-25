@@ -90,7 +90,7 @@ describe('save', () => {
     );
 
     const save = loadSave();
-    expect(save?.version).toBe(23);
+    expect(save?.version).toBe(24);
     expect(save?.equipped?.weapon?.enhance).toBe(4);
     expect(save?.equipped?.weapon?.substats).toEqual([]);
     expect(save?.equipped?.weapon?.runes).toEqual([null, null, null]);
@@ -106,7 +106,7 @@ describe('save', () => {
   it('save lama tanpa dust mulai dari 0, dust yang ada dipertahankan', () => {
     writeSave({ ...minimalSave(), version: 13 });
     const migrated = loadSave();
-    expect(migrated?.version).toBe(23);
+    expect(migrated?.version).toBe(24);
     expect(migrated?.dust).toBe(0);
     expect(migrated?.league).toMatchObject({ points: 0, division: 0, rewardDivision: null });
 
@@ -221,7 +221,7 @@ describe('save', () => {
     );
 
     const migrated = loadSave();
-    expect(migrated?.version).toBe(23);
+    expect(migrated?.version).toBe(24);
     expect(migrated?.costume).toEqual({
       owned: ['void-regent', 'ash-ronin'],
       equipped: null,
@@ -240,7 +240,7 @@ describe('save', () => {
 
   it('migrasi v18 mulai tanpa palet, v19 menyimpan pilihan dan membersihkan id asing', () => {
     writeSave(minimalSave({ version: 18 }));
-    expect(loadSave()).toMatchObject({ version: 23, palette: { worn: null, unlocked: [] } });
+    expect(loadSave()).toMatchObject({ version: 24, palette: { worn: null, unlocked: [] } });
 
     writeSave(
       minimalSave({
@@ -260,7 +260,7 @@ describe('save', () => {
   it('migrasi v19 mulai tanpa mount, v20 menyimpan stable, v21 menambah wing, v22 codex stable/wing', () => {
     writeSave(minimalSave({ version: 19 }));
     expect(loadSave()).toMatchObject({
-      version: 23,
+      version: 24,
       mounts: { active: null, owned: {} },
       wings: { active: null, owned: {} },
       codex: { mounts: [], wings: [] },
